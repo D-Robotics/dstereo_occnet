@@ -270,7 +270,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
                     float occ_val2 = BPUUtils::quanti_scale(val2, output_tensor.properties.scale.scaleData[z + 1]);
                     if (occ_val2 >= occ_val1)
                     {
-                        occ_points.emplace_back(x, y, -z / 2);
+                        occ_points.emplace_back(x - X / 2, y, -z / 2);
                     }
                 }
                 else

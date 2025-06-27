@@ -42,6 +42,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "need_rectify": "true",
+            "resolution": "1080p",
             "dst_width": "640",
             "dst_height": "352",
         }.items(),

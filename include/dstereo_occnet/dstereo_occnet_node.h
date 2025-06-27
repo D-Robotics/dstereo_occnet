@@ -6,6 +6,7 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "opencv2/opencv.hpp"
 #include "dstereo_occnet/dstereo_occnet_infer.h"
+#include "dstereo_occnet/img_convert_utils.h"
 
 /**
  * @brief DStereoOccNetNode class for occupancy network ros node
@@ -25,6 +26,12 @@ private:
      */
     void infer_online(const sensor_msgs::msg::Image::ConstSharedPtr &stereo_msg);
 
+    /**
+     * @brief occupancy network offline infer fun
+     * This function processes images from a local directory and performs inference using the occupancy network.
+     */
+    void infer_offline();
+
     // ===================================== member =====================================
     /* sub */
     std::string stereo_msg_topic_;
@@ -34,6 +41,10 @@ private:
     /* occ model */
     std::string occ_model_file_path_;
     DStereoOccNetInfer dstereo_occnet_infer_;
+
+    /* offline */
+    bool use_local_image_;
+    std::string local_image_dir_;
 };
 
 #endif
