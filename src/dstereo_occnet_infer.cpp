@@ -152,8 +152,15 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
   auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(after_infer - before_infer).count();
   RCLCPP_INFO_STREAM(logger_, "=> time cost: " << interval << " ms, fps: " << 1 / (interval / 1000.0));
 
-  ret_code = postprocess(occ_grid_msg);
-  HB_CHECK_SUCCESS(logger_, ret_code, "postprocess failed");
+  std::thread post_thread([this, &occ_grid_msg]() {
+    int ret = postprocess(occ_grid_msg);
+    if (ret != 0) {
+      RCLCPP_ERROR(logger_, "postprocess failed in async thread");
+    } else {
+      RCLCPP_INFO(logger_, "postprocess success in async thread");
+    }
+  });
+  post_thread.detach();
 
   return ret_code;
 }
