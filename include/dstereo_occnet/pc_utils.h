@@ -7,11 +7,11 @@
 
 class PCUtils {
 public:
-    // delete the default constructor
-    PCUtils() = delete;
+  // delete the default constructor
+  PCUtils() = delete;
 
-    // utility function
-    static void save_pointcloud_to_txt(const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg, const std::string& filename);
+  // utility function
+  static void save_pointcloud_to_txt(const sensor_msgs::msg::PointCloud2::SharedPtr &cloud_msg, const std::string &filename);
 };
 
 #endif
