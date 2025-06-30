@@ -40,7 +40,9 @@ def set_configurable_parameters(parameters):
 def generate_launch_description():
 
     occ_model_file_path = os.path.join(
-        get_package_share_directory("dstereo_occnet"), "config", "X5-OCC-32x64x96x2_constinput_modified.bin"
+        get_package_share_directory("dstereo_occnet"),
+        "config",
+        "X5-OCC-32x64x96x2_constinput_modified.bin",
     )
 
     node_params = [
@@ -53,6 +55,26 @@ def generate_launch_description():
             "name": "occ_model_file_path",
             "default_value": occ_model_file_path,
             "description": "occ_model_file_path",
+        },
+        {
+            "name": "use_local_image",
+            "default_value": "false",
+            "description": "use_local_image",
+        },
+        {
+            "name": "local_image_dir",
+            "default_value": "",
+            "description": "local_image_dir",
+        },
+        {
+            "name": "save_img_flag",
+            "default_value": "false",
+            "description": "save_img_flag",
+        },
+        {
+            "name": "save_img_dir",
+            "default_value": "",
+            "description": "save_img_dir",
         },
         {"name": "log_level", "default_value": "info", "description": "log_level"},
     ]

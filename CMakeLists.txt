@@ -19,7 +19,7 @@ link_directories(
 )
 
 # add executable
-add_executable(dstereo_occnet src/main.cpp src/dstereo_occnet_node.cpp src/dstereo_occnet_infer.cpp src/bpu_utils.cpp src/img_convert_utils.cpp)
+add_executable(dstereo_occnet src/main.cpp src/dstereo_occnet_node.cpp src/dstereo_occnet_infer.cpp src/bpu_utils.cpp src/img_convert_utils.cpp src/pc_utils.cpp)
 target_compile_features(dstereo_occnet PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 target_include_directories(dstereo_occnet PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -271,6 +271,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
                     if (occ_val2 >= occ_val1)
                     {
                         occ_points.emplace_back(x - X / 2, y, -z / 2);
+                        // occ_points.emplace_back(x, y, z / 2);
                     }
                 }
                 else

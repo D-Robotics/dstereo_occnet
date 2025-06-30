@@ -6,7 +6,12 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "opencv2/opencv.hpp"
 #include "dstereo_occnet/dstereo_occnet_infer.h"
+#include "dstereo_occnet/dstereo_occnet_infer.h"
 #include "dstereo_occnet/img_convert_utils.h"
+#include "dstereo_occnet/pc_utils.h"
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 /**
  * @brief DStereoOccNetNode class for occupancy network ros node
@@ -45,6 +50,10 @@ private:
     /* offline */
     bool use_local_image_;
     std::string local_image_dir_;
+
+    /* save img */
+    bool save_img_flag_;
+    std::string save_img_dir_;
 };
 
 #endif
