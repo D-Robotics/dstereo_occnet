@@ -10,8 +10,10 @@ find_package(ament_cmake REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
-include_directories(${SYS_ROOT}/usr/include)
-include_directories(${SYS_ROOT}/usr/hobot/include)
+include_directories(
+  ${SYS_ROOT}/usr/include
+  ${SYS_ROOT}/usr/hobot/include
+)
 link_directories(
   ${SYS_ROOT}/usr/lib/hbbpu
   ${SYS_ROOT}/usr/hobot/lib
@@ -19,7 +21,7 @@ link_directories(
 )
 
 # add executable
-add_executable(dstereo_occnet src/main.cpp src/dstereo_occnet_node.cpp src/dstereo_occnet_infer.cpp src/bpu_utils.cpp src/img_convert_utils.cpp src/pc_utils.cpp)
+add_executable(dstereo_occnet src/main.cpp src/dstereo_occnet_node.cpp src/dstereo_occnet_infer.cpp src/bpu_utils.cpp src/img_convert_utils.cpp src/pc_utils.cpp src/timer_utils.cpp)
 target_compile_features(dstereo_occnet PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 target_include_directories(dstereo_occnet PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

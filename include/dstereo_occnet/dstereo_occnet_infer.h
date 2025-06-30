@@ -7,6 +7,7 @@
 #include "dnn/hb_dnn.h"
 #include "opencv2/opencv.hpp"
 #include "dstereo_occnet/bpu_utils.h"
+#include "dstereo_occnet/timer_utils.h"
 
 // =================================================================================================================================
 #define HB_CHECK_SUCCESS(logger, ret_code, errmsg)                                                                                                                                                     \

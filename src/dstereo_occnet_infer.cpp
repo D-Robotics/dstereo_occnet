@@ -130,29 +130,30 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
     return -1;
   }
 
-  RCLCPP_INFO(logger_, "=> ----- fill_nv12_img_to_input_tensor -----");
-  ret_code = fill_nv12_img_to_input_tensor(left_img_data, right_img_data);
+  {
+    ScopeProcessTime t(logger_, "preprocess");
+    RCLCPP_INFO(logger_, "=> ----- fill_nv12_img_to_input_tensor -----");
+    ret_code = fill_nv12_img_to_input_tensor(left_img_data, right_img_data);
+  }
 
-  RCLCPP_INFO(logger_, "=> ----- infer -----");
-  hbDNNTensor *output = output_tensors_.data();
-  hbDNNInferCtrlParam infer_ctrl_param;
-  HB_DNN_INITIALIZE_INFER_CTRL_PARAM(&infer_ctrl_param);
-  // == time-consuming test ==
-  auto before_infer = std::chrono::system_clock::now();
-  hbDNNTaskHandle_t task_handle = nullptr;
-  ret_code = hbDNNInfer(&task_handle, &output, input_tensors_.data(), dnn_handle_, &infer_ctrl_param);
-  HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNInfer failed");
-  // wait task done
-  ret_code = hbDNNWaitTaskDone(task_handle, 0);
-  HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNWaitTaskDone failed");
-  ret_code = hbDNNReleaseTask(task_handle);
-  HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNReleaseTask failed");
-  // == time-consuming test ==
-  auto after_infer = std::chrono::system_clock::now();
-  auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(after_infer - before_infer).count();
-  RCLCPP_INFO_STREAM(logger_, "=> time cost: " << interval << " ms, fps: " << 1 / (interval / 1000.0));
+  {
+    ScopeProcessTime t(logger_, "infer");
+    RCLCPP_INFO(logger_, "=> ----- infer -----");
+    hbDNNTensor *output = output_tensors_.data();
+    hbDNNInferCtrlParam infer_ctrl_param;
+    HB_DNN_INITIALIZE_INFER_CTRL_PARAM(&infer_ctrl_param);
+    hbDNNTaskHandle_t task_handle = nullptr;
+    ret_code = hbDNNInfer(&task_handle, &output, input_tensors_.data(), dnn_handle_, &infer_ctrl_param);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNInfer failed");
+    // wait task done
+    ret_code = hbDNNWaitTaskDone(task_handle, 0);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNWaitTaskDone failed");
+    ret_code = hbDNNReleaseTask(task_handle);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNReleaseTask failed");
+  }
 
   std::thread post_thread([this, &occ_grid_msg]() {
+    ScopeProcessTime t(logger_, "postprocess");
     int ret = postprocess(occ_grid_msg);
     if (ret != 0) {
       RCLCPP_ERROR(logger_, "postprocess failed in async thread");
@@ -212,6 +213,7 @@ int DStereoOccNetInfer::fill_nv12_img_to_input_tensor(const uint8_t *left_img_da
   return ret_code;
 }
 
+/*
 int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg) {
   int ret_code = 0;
   // make sure CPU read data from DDR before using output tensor data
@@ -236,6 +238,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
   RCLCPP_INFO(logger_, "=> output tensor shape: [%d, %d, %d, %d]", B, X, Y, Z);
 
   std::vector<cv::Point3i> occ_points;
+  occ_points.reserve(X * Y * (Z / 2));
   for (int x = 0; x < X; ++x) {
     for (int y = 0; y < Y; ++y) {
       for (int z = 0; z < Z; z += 2) {
@@ -253,6 +256,107 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
         } else {
           RCLCPP_ERROR(logger_, "=> output tensor quantiType is not SCALE");
           return -1;
+        }
+      }
+    }
+  }
+
+  occ_grid_msg->height = 1;
+  occ_grid_msg->is_dense = false;
+  occ_grid_msg->is_bigendian = false;
+
+  sensor_msgs::PointCloud2Modifier modifier(*occ_grid_msg);
+  modifier.setPointCloud2Fields(3, "x", 1, sensor_msgs::msg::PointField::FLOAT32, "y", 1, sensor_msgs::msg::PointField::FLOAT32, "z", 1, sensor_msgs::msg::PointField::FLOAT32);
+  occ_grid_msg->width = occ_points.size();
+  modifier.resize(occ_points.size());
+
+  sensor_msgs::PointCloud2Iterator<float> iter_x(*occ_grid_msg, "x");
+  sensor_msgs::PointCloud2Iterator<float> iter_y(*occ_grid_msg, "y");
+  sensor_msgs::PointCloud2Iterator<float> iter_z(*occ_grid_msg, "z");
+
+  for (const auto &point : occ_points) {
+    *iter_x = point.x;
+    *iter_y = point.y;
+    *iter_z = point.z;
+    ++iter_x;
+    ++iter_y;
+    ++iter_z;
+  }
+
+  return ret_code;
+}
+*/
+
+int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg) {
+  int ret_code = 0;
+  // make sure CPU read data from DDR before using output tensor data
+  for (size_t i = 0; i < output_tensors_.size(); i++) {
+    ret_code = hbSysFlushMem(&(output_tensors_[i].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
+  }
+
+  hbDNNTensor output_tensor = output_tensors_[0];
+  if (output_tensor.properties.tensorType != HB_DNN_TENSOR_TYPE_S32) {
+    return -1;
+  }
+
+  auto output_tensor_data = reinterpret_cast<int32_t *>(output_tensor.sysMem[0].virAddr);
+  int dims = output_tensor.properties.validShape.numDimensions;
+  RCLCPP_INFO(logger_, "=> output tensor dims: %d", dims);
+  if (dims != 4) {
+    return -1;
+  }
+  int *shape = output_tensor.properties.validShape.dimensionSize;
+  int B = shape[0], X = shape[1], Y = shape[2], Z = shape[3];
+  RCLCPP_INFO(logger_, "=> output tensor shape: [%d, %d, %d, %d]", B, X, Y, Z);
+
+  std::vector<cv::Point3i> occ_points;
+  occ_points.reserve(X * Y * (Z / 2));
+  for (int z = 0; z < Z; z += 2) {
+    float scale1 = output_tensor.properties.scale.scaleData[z];
+    float scale2 = output_tensor.properties.scale.scaleData[z + 1];
+
+    for (int x = 0; x < X; ++x) {
+      int row_base = x * Y * Z;
+
+      int y = 0;
+      for (; y <= Y - 4; y += 4) {
+        // val1
+        int32x4_t val1_i32 = {output_tensor_data[row_base + y * Z + z], output_tensor_data[row_base + (y + 1) * Z + z], output_tensor_data[row_base + (y + 2) * Z + z],
+                              output_tensor_data[row_base + (y + 3) * Z + z]};
+
+        // val2
+        int32x4_t val2_i32 = {output_tensor_data[row_base + y * Z + z + 1], output_tensor_data[row_base + (y + 1) * Z + z + 1], output_tensor_data[row_base + (y + 2) * Z + z + 1],
+                              output_tensor_data[row_base + (y + 3) * Z + z + 1]};
+
+        float32x4_t val1_f32 = vcvtq_f32_s32(val1_i32);
+        float32x4_t val2_f32 = vcvtq_f32_s32(val2_i32);
+
+        float32x4_t occ_val1 = vmulq_n_f32(val1_f32, scale1);
+        float32x4_t occ_val2 = vmulq_n_f32(val2_f32, scale2);
+
+        uint32x4_t mask = vcgeq_f32(occ_val2, occ_val1);
+
+        uint32_t mask_array[4];
+        vst1q_u32(mask_array, mask);
+
+        for (int i = 0; i < 4; ++i) {
+          if (mask_array[i]) {
+            occ_points.emplace_back(x - X / 2, y + i, -z / 2);
+          }
+        }
+      }
+
+      // 尾部处理
+      for (; y < Y; ++y) {
+        int index1 = row_base + y * Z + z;
+        int index2 = index1 + 1;
+        int32_t val1 = output_tensor_data[index1];
+        int32_t val2 = output_tensor_data[index2];
+        float occ_val1 = val1 * scale1;
+        float occ_val2 = val2 * scale2;
+        if (occ_val2 >= occ_val1) {
+          occ_points.emplace_back(x - X / 2, y, -z / 2);
         }
       }
     }
