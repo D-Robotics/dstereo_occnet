@@ -249,7 +249,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
         if (output_tensor.properties.quantiType == SCALE) {
           float occ_val1 = BPUUtils::quanti_scale(val1, output_tensor.properties.scale.scaleData[z]);
           float occ_val2 = BPUUtils::quanti_scale(val2, output_tensor.properties.scale.scaleData[z + 1]);
-          if (occ_val2 >= occ_val1) {
+          if (occ_val2 > occ_val1) {
             occ_points.emplace_back(x - X / 2, y, -z / 2);
             // occ_points.emplace_back(x, y, z / 2);
           }
@@ -347,7 +347,6 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
         }
       }
 
-      // 尾部处理
       for (; y < Y; ++y) {
         int index1 = row_base + y * Z + z;
         int index2 = index1 + 1;
@@ -355,7 +354,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
         int32_t val2 = output_tensor_data[index2];
         float occ_val1 = val1 * scale1;
         float occ_val2 = val2 * scale2;
-        if (occ_val2 >= occ_val1) {
+        if (occ_val2 > occ_val1) {
           occ_points.emplace_back(x - X / 2, y, -z / 2);
         }
       }
