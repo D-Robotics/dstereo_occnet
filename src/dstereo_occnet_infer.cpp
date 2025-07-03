@@ -152,16 +152,22 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
     HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNReleaseTask failed");
   }
 
-  std::thread post_thread([this, &occ_grid_msg]() {
+  // std::thread post_thread([this, &occ_grid_msg]() {
+  //   ScopeProcessTime t(logger_, "postprocess");
+  //   int ret = postprocess(occ_grid_msg);
+  //   if (ret != 0) {
+  //     RCLCPP_ERROR(logger_, "postprocess failed in async thread");
+  //   } else {
+  //     RCLCPP_INFO(logger_, "postprocess success in async thread");
+  //   }
+  // });
+  // post_thread.detach();
+
+  {
     ScopeProcessTime t(logger_, "postprocess");
-    int ret = postprocess(occ_grid_msg);
-    if (ret != 0) {
-      RCLCPP_ERROR(logger_, "postprocess failed in async thread");
-    } else {
-      RCLCPP_INFO(logger_, "postprocess success in async thread");
-    }
-  });
-  post_thread.detach();
+    ret_code = postprocess(occ_grid_msg);
+    HB_CHECK_SUCCESS(logger_, ret_code, "postprocess failed");
+  }
 
   return ret_code;
 }
@@ -216,6 +222,7 @@ int DStereoOccNetInfer::fill_nv12_img_to_input_tensor(const uint8_t *left_img_da
 /*
 int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg) {
   int ret_code = 0;
+  float voxel_size = 0.02; // voxel size in meters
   // make sure CPU read data from DDR before using output tensor data
   for (size_t i = 0; i < output_tensors_.size(); i++) {
     ret_code = hbSysFlushMem(&(output_tensors_[i].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
@@ -237,7 +244,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
   int B = shape[0], X = shape[1], Y = shape[2], Z = shape[3];
   RCLCPP_INFO(logger_, "=> output tensor shape: [%d, %d, %d, %d]", B, X, Y, Z);
 
-  std::vector<cv::Point3i> occ_points;
+  std::vector<cv::Point3f> occ_points;
   occ_points.reserve(X * Y * (Z / 2));
   for (int x = 0; x < X; ++x) {
     for (int y = 0; y < Y; ++y) {
@@ -250,7 +257,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
           float occ_val1 = BPUUtils::quanti_scale(val1, output_tensor.properties.scale.scaleData[z]);
           float occ_val2 = BPUUtils::quanti_scale(val2, output_tensor.properties.scale.scaleData[z + 1]);
           if (occ_val2 > occ_val1) {
-            occ_points.emplace_back(x - X / 2, y, -z / 2);
+            occ_points.emplace_back((x - X / 2) * voxel_size, y * voxel_size, (-z / 2 + Z / 2) * voxel_size);
             // occ_points.emplace_back(x, y, z / 2);
           }
         } else {
@@ -289,6 +296,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
 
 int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg) {
   int ret_code = 0;
+  float voxel_size = 0.02; // voxel size in meters
   // make sure CPU read data from DDR before using output tensor data
   for (size_t i = 0; i < output_tensors_.size(); i++) {
     ret_code = hbSysFlushMem(&(output_tensors_[i].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
@@ -310,7 +318,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
   int B = shape[0], X = shape[1], Y = shape[2], Z = shape[3];
   RCLCPP_INFO(logger_, "=> output tensor shape: [%d, %d, %d, %d]", B, X, Y, Z);
 
-  std::vector<cv::Point3i> occ_points;
+  std::vector<cv::Point3f> occ_points;
   occ_points.reserve(X * Y * (Z / 2));
   for (int z = 0; z < Z; z += 2) {
     float scale1 = output_tensor.properties.scale.scaleData[z];
@@ -342,11 +350,12 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
 
         for (int i = 0; i < 4; ++i) {
           if (mask_array[i]) {
-            occ_points.emplace_back(x - X / 2, y + i, -z / 2);
+            occ_points.emplace_back((x - X / 2) * voxel_size, (y + i) * voxel_size, (-z / 2 + Z / 2) * voxel_size);
           }
         }
       }
 
+      // handle the remaining rows (if Y is not a multiple of 4)
       for (; y < Y; ++y) {
         int index1 = row_base + y * Z + z;
         int index2 = index1 + 1;
@@ -355,7 +364,7 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
         float occ_val1 = val1 * scale1;
         float occ_val2 = val2 * scale2;
         if (occ_val2 > occ_val1) {
-          occ_points.emplace_back(x - X / 2, y, -z / 2);
+          occ_points.emplace_back((x - X / 2) * voxel_size, y * voxel_size, (-z / 2 + Z / 2) * voxel_size);
         }
       }
     }
