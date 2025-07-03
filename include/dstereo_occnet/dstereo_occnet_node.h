@@ -53,6 +53,9 @@ private:
   /* save img */
   bool save_img_flag_;
   std::string save_img_dir_;
+
+  /* occ grid */
+  float voxel_size_;
 };
 
 #endif

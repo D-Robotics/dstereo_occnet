@@ -40,7 +40,8 @@ public:
   /**
    * @brief infer by occ model
    */
-  int forward(const uint8_t *left_img_data, const uint8_t *right_img_data, const int &img_w, const int &img_h, sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg);
+  int forward(const uint8_t *left_img_data, const uint8_t *right_img_data, const int &img_w, const int &img_h, const std_msgs::msg::Header &header,
+              const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size);
 
 private:
   // ===================================== func =======================================
@@ -71,7 +72,7 @@ private:
    * @param occ_grid_msg output occupancy grid message
    * @return 0 on success, -1 on failure
    */
-  int postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg);
+  int postprocess(const std_msgs::msg::Header &header, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size);
 
   // ===================================== member =====================================
   /** init */

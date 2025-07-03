@@ -20,9 +20,16 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python import get_package_share_directory
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 
 
 def generate_launch_description():
+    web_pub_arg = DeclareLaunchArgument(
+        "web_pub",
+        default_value="true",
+        description="Enable web publishing. If false, websocket and codec nodes will be disabled.",
+    )
+
     # zero-copy environment configuration
     shared_mem_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -75,6 +82,7 @@ def generate_launch_description():
             "codec_out_format": "jpeg",
             "log_level": "warn",
         }.items(),
+        condition=IfCondition(LaunchConfiguration("web_pub")),
     )
 
     # web node
@@ -88,10 +96,12 @@ def generate_launch_description():
             "websocket_image_topic": "/image_jpeg",
             "websocket_only_show_image": "true",
         }.items(),
+        condition=IfCondition(LaunchConfiguration("web_pub")),
     )
 
     return LaunchDescription(
         [
+            web_pub_arg,
             shared_mem_node,
             zed_cam_node,
             dstereo_occnet_node,

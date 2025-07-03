@@ -122,7 +122,8 @@ int DStereoOccNetInfer::prepare_output_tensor() {
   return ret_code;
 }
 
-int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *right_img_data, const int &img_w, const int &img_h, sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg) {
+int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *right_img_data, const int &img_w, const int &img_h, const std_msgs::msg::Header &header,
+                                const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size) {
   RCLCPP_INFO_STREAM(logger_, "=> ==================== infer by model =======================");
   int ret_code = 0;
   if (img_w != model_input_w_ || img_h != model_input_h_) {
@@ -152,22 +153,22 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
     HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNReleaseTask failed");
   }
 
-  // std::thread post_thread([this, &occ_grid_msg]() {
-  //   ScopeProcessTime t(logger_, "postprocess");
-  //   int ret = postprocess(occ_grid_msg);
-  //   if (ret != 0) {
-  //     RCLCPP_ERROR(logger_, "postprocess failed in async thread");
-  //   } else {
-  //     RCLCPP_INFO(logger_, "postprocess success in async thread");
-  //   }
-  // });
-  // post_thread.detach();
-
-  {
+  std::thread post_thread([this, header, voxel_pub, voxel_size]() {
     ScopeProcessTime t(logger_, "postprocess");
-    ret_code = postprocess(occ_grid_msg);
-    HB_CHECK_SUCCESS(logger_, ret_code, "postprocess failed");
-  }
+    int ret = postprocess(header, voxel_pub, voxel_size);
+    if (ret != 0) {
+      RCLCPP_ERROR(this->logger_, "postprocess failed in async thread");
+    } else {
+      RCLCPP_INFO(this->logger_, "postprocess success in async thread");
+    }
+  });
+  post_thread.detach();
+
+  // {
+  //   ScopeProcessTime t(logger_, "postprocess");
+  //   ret_code = postprocess(header, voxel_pub, voxel_size);
+  //   HB_CHECK_SUCCESS(logger_, ret_code, "postprocess failed");
+  // }
 
   return ret_code;
 }
@@ -294,9 +295,8 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
 }
 */
 
-int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &occ_grid_msg) {
+int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size) {
   int ret_code = 0;
-  float voxel_size = 0.02; // voxel size in meters
   // make sure CPU read data from DDR before using output tensor data
   for (size_t i = 0; i < output_tensors_.size(); i++) {
     ret_code = hbSysFlushMem(&(output_tensors_[i].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
@@ -369,7 +369,8 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
       }
     }
   }
-
+  auto occ_grid_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
+  occ_grid_msg->header = header;
   occ_grid_msg->height = 1;
   occ_grid_msg->is_dense = false;
   occ_grid_msg->is_bigendian = false;
@@ -391,6 +392,8 @@ int DStereoOccNetInfer::postprocess(sensor_msgs::msg::PointCloud2::SharedPtr &oc
     ++iter_y;
     ++iter_z;
   }
+
+  voxel_pub->publish(*occ_grid_msg);
 
   return ret_code;
 }
