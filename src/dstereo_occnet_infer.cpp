@@ -187,12 +187,7 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
 
   thread_pool_->enqueue([this, header, voxel_pub, voxel_size]() {
     ScopeProcessTime t(logger_, "postprocess");
-    int ret = postprocess(header, voxel_pub, voxel_size);
-    if (ret != 0) {
-      RCLCPP_ERROR(this->logger_, "postprocess failed in async thread");
-    } else {
-      RCLCPP_INFO(this->logger_, "postprocess success in async thread");
-    }
+    postprocess(header, voxel_pub, voxel_size);
   });
 
   return ret_code;

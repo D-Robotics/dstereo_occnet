@@ -72,7 +72,7 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
   std::memcpy(left_img_data + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height, single_img_w * single_img_h / 2);
   std::memcpy(right_img_data, stereo_msg->data.data() + single_img_w * single_img_h, single_img_w * single_img_h);
   std::memcpy(right_img_data + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height + single_img_w * single_img_h / 2, single_img_w * single_img_h / 2);
-  int ret_code = dstereo_occnet_infer_.forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
+  dstereo_occnet_infer_.forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
 
   // if (ret_code == 0) {
   //   voxel_pub_->publish(*occ_grid_msg);
@@ -104,7 +104,7 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
 }
 
 void DStereoOccNetNode::infer_offline() {
-  while (rclcpp::ok) {
+  while (rclcpp::ok()) {
     std::string left_img_path = "./180_left.npy.png";
     std::string right_img_path = "./180_right.npy.png";
     RCLCPP_INFO_STREAM(this->get_logger(), "=> left_img_path: " << left_img_path << " , right_img_path: " << right_img_path);
@@ -120,6 +120,6 @@ void DStereoOccNetNode::infer_offline() {
     std_msgs::msg::Header header;
     header.stamp = rclcpp::Clock().now();
     header.frame_id = "pcl_link";
-    int ret_code = dstereo_occnet_infer_.forward(left_img_nv12.data, right_img_nv12.data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
+    dstereo_occnet_infer_.forward(left_img_nv12.data, right_img_nv12.data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
   }
 }
