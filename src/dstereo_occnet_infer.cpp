@@ -1,7 +1,6 @@
 #include "dstereo_occnet/dstereo_occnet_infer.h"
-#include <vector>
 
-DStereoOccNetInfer::DStereoOccNetInfer(const rclcpp::Logger &logger) : logger_(logger) {
+DStereoOccNetInfer::DStereoOccNetInfer(const rclcpp::Logger &logger) : logger_(logger), thread_pool_(std::make_unique<ThreadPool>(2)) {
 }
 
 int DStereoOccNetInfer::init(std::string &occ_model_file_path) {
@@ -153,7 +152,24 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
     HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNReleaseTask failed");
   }
 
-  std::thread post_thread([this, header, voxel_pub, voxel_size]() {
+  // {
+  //   ScopeProcessTime t(logger_, "postprocess");
+  //   ret_code = postprocess(header, voxel_pub, voxel_size);
+  //   HB_CHECK_SUCCESS(logger_, ret_code, "postprocess failed");
+  // }
+
+  // std::thread post_thread([this, header, voxel_pub, voxel_size]() {
+  //   ScopeProcessTime t(logger_, "postprocess");
+  //   int ret = postprocess(header, voxel_pub, voxel_size);
+  //   if (ret != 0) {
+  //     RCLCPP_ERROR(this->logger_, "postprocess failed in async thread");
+  //   } else {
+  //     RCLCPP_INFO(this->logger_, "postprocess success in async thread");
+  //   }
+  // });
+  // post_thread.detach();
+
+  thread_pool_->enqueue([this, header, voxel_pub, voxel_size]() {
     ScopeProcessTime t(logger_, "postprocess");
     int ret = postprocess(header, voxel_pub, voxel_size);
     if (ret != 0) {
@@ -162,13 +178,6 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
       RCLCPP_INFO(this->logger_, "postprocess success in async thread");
     }
   });
-  post_thread.detach();
-
-  // {
-  //   ScopeProcessTime t(logger_, "postprocess");
-  //   ret_code = postprocess(header, voxel_pub, voxel_size);
-  //   HB_CHECK_SUCCESS(logger_, ret_code, "postprocess failed");
-  // }
 
   return ret_code;
 }

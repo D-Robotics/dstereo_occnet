@@ -8,6 +8,7 @@
 #include "opencv2/opencv.hpp"
 #include "dstereo_occnet/bpu_utils.h"
 #include "dstereo_occnet/timer_utils.h"
+#include "dstereo_occnet/thread_pool.h"
 
 // =================================================================================================================================
 #define HB_CHECK_SUCCESS(logger, ret_code, errmsg)                                                                                                                                                     \
@@ -91,6 +92,9 @@ private:
   int model_input_h_;
   int model_input_w_;
   int32_t input_tensor_type_;
+
+  /** thread pool */
+  std::unique_ptr<ThreadPool> thread_pool_;
 };
 
 #endif
