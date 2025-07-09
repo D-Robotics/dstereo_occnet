@@ -13,10 +13,10 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   this->declare_parameter("local_image_dir", "");
   this->get_parameter("local_image_dir", local_image_dir_);
 
-  this->declare_parameter("save_img_flag", false);
-  this->get_parameter("save_img_flag", save_img_flag_);
-  this->declare_parameter("save_img_dir", "");
-  this->get_parameter("save_img_dir", save_img_dir_);
+  this->declare_parameter("save_occ_flag", false);
+  this->get_parameter("save_occ_flag", save_occ_flag_);
+  this->declare_parameter("save_occ_dir", "");
+  this->get_parameter("save_occ_dir", save_occ_dir_);
 
   this->declare_parameter("voxel_size", 0.02);
   this->get_parameter("voxel_size", voxel_size_);
@@ -27,9 +27,9 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
                                                      << "=> stereo_msg_topic: " << stereo_msg_topic_ << std::endl
                                                      << "=> use_local_image: " << (use_local_image_ ? "true" : "false") << std::endl
                                                      << "=> local_image_dir: " << local_image_dir_ << std::endl
-                                                     << "=> save_img_flag: " << (save_img_flag_ ? "true" : "false") << std::endl
-                                                     << "=> save_img_dir: " << save_img_dir_ << std::endl
-                                                      << "=> voxel_size: " << voxel_size_  << "m" << std::endl
+                                                     << "=> save_occ_flag: " << (save_occ_flag_ ? "true" : "false") << std::endl
+                                                     << "=> save_occ_dir: " << save_occ_dir_ << std::endl
+                                                     << "=> voxel_size: " << voxel_size_ << "m" << std::endl
                                                      << "\033[0m");
 
   // =================================================================================================================================
@@ -40,7 +40,7 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   // =================================================================================================================================
   /* init infer class */
   int ret_code = 0;
-  ret_code = dstereo_occnet_infer_.init(occ_model_file_path_);
+  ret_code = dstereo_occnet_infer_.init(occ_model_file_path_, save_occ_flag_, save_occ_dir_);
   if (ret_code == -1) {
     RCLCPP_ERROR(this->get_logger(), "=> Failed to initialize dstereo_occnet Model, shutting down node.");
     rclcpp::shutdown();
@@ -104,28 +104,22 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
 }
 
 void DStereoOccNetNode::infer_offline() {
+  while (rclcpp::ok) {
+    std::string left_img_path = "./180_left.npy.png";
+    std::string right_img_path = "./180_right.npy.png";
+    RCLCPP_INFO_STREAM(this->get_logger(), "=> left_img_path: " << left_img_path << " , right_img_path: " << right_img_path);
+    cv::Mat left_img_bgr = cv::imread(left_img_path, cv::IMREAD_COLOR);
+    cv::Mat right_img_bgr = cv::imread(right_img_path, cv::IMREAD_COLOR);
+    if (left_img_bgr.empty() || right_img_bgr.empty()) {
+      RCLCPP_ERROR(this->get_logger(), "=> failed to read image!");
+    }
+    cv::Mat left_img_nv12, right_img_nv12;
+    ImgConvertUtils::bgr_to_nv12_mat(left_img_bgr, left_img_nv12);
+    ImgConvertUtils::bgr_to_nv12_mat(right_img_bgr, right_img_nv12);
 
-  std::string left_img_path = "./180_left.npy.png";
-  std::string right_img_path = "./180_right.npy.png";
-  RCLCPP_INFO_STREAM(this->get_logger(), "=> left_img_path: " << left_img_path << " , right_img_path: " << right_img_path);
-  cv::Mat left_img_bgr = cv::imread(left_img_path, cv::IMREAD_COLOR);
-  cv::Mat right_img_bgr = cv::imread(right_img_path, cv::IMREAD_COLOR);
-  if (left_img_bgr.empty() || right_img_bgr.empty()) {
-    RCLCPP_ERROR(this->get_logger(), "=> failed to read image!");
+    std_msgs::msg::Header header;
+    header.stamp = rclcpp::Clock().now();
+    header.frame_id = "pcl_link";
+    int ret_code = dstereo_occnet_infer_.forward(left_img_nv12.data, right_img_nv12.data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
   }
-  cv::Mat left_img_nv12, right_img_nv12;
-  ImgConvertUtils::bgr_to_nv12_mat(left_img_bgr, left_img_nv12);
-  ImgConvertUtils::bgr_to_nv12_mat(right_img_bgr, right_img_nv12);
-
-  auto occ_grid_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
-  occ_grid_msg->header.frame_id = "pcl_link";
-  // int ret_code = dstereo_occnet_infer_.forward(left_img_nv12.data, right_img_nv12.data, left_img_bgr.cols, left_img_bgr.rows, occ_grid_msg);
-  // if (ret_code == 0) {
-  //   while (rclcpp::ok()) {
-  //     occ_grid_msg->header.stamp = this->get_clock()->now();
-  //     voxel_pub_->publish(*occ_grid_msg);
-  //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  //     RCLCPP_INFO(this->get_logger(), "=> Published occupancy grid point cloud.");
-  //   }
-  // }
 }

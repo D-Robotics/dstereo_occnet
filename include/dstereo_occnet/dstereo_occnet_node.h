@@ -50,9 +50,9 @@ private:
   bool use_local_image_;
   std::string local_image_dir_;
 
-  /* save img */
-  bool save_img_flag_;
-  std::string save_img_dir_;
+  /* save result */
+  bool save_occ_flag_;
+  std::string save_occ_dir_;
 
   /* occ grid */
   float voxel_size_;

@@ -67,14 +67,19 @@ def generate_launch_description():
             "description": "local_image_dir",
         },
         {
-            "name": "save_img_flag",
+            "name": "save_occ_flag",
             "default_value": "false",
-            "description": "save_img_flag",
+            "description": "save_occ_flag",
         },
         {
-            "name": "save_img_dir",
+            "name": "save_occ_dir",
             "default_value": "",
-            "description": "save_img_dir",
+            "description": "save_occ_dir",
+        },
+        {
+            "name": "voxel_size",
+            "default_value": "0.02",
+            "description": "voxel_size",
         },
         {"name": "log_level", "default_value": "info", "description": "log_level"},
     ]

@@ -9,6 +9,11 @@
 #include "dstereo_occnet/bpu_utils.h"
 #include "dstereo_occnet/timer_utils.h"
 #include "dstereo_occnet/thread_pool.h"
+#include "dstereo_occnet/img_convert_utils.h"
+#include "dstereo_occnet/pc_utils.h"
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 // =================================================================================================================================
 #define HB_CHECK_SUCCESS(logger, ret_code, errmsg)                                                                                                                                                     \
@@ -34,9 +39,11 @@ public:
   /**
    * @brief init occnet infer class
    * @param occ_model_file_path occupancy model file path
+   * @param save_occ_flag flag to save occupancy grid result
+   * @param save_occ_dir directory to save occupancy grid result
    * @return 0 on success, -1 on failure
    */
-  int init(std::string &occ_model_file_path);
+  int init(std::string &occ_model_file_path, bool save_occ_flag, std::string &save_occ_dir);
 
   /**
    * @brief infer by occ model
@@ -95,6 +102,10 @@ private:
 
   /** thread pool */
   std::unique_ptr<ThreadPool> thread_pool_;
+
+  /* save result */
+  bool save_occ_flag_;
+  std::string save_occ_dir_;
 };
 
 #endif

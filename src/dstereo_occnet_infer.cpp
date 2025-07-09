@@ -3,7 +3,7 @@
 DStereoOccNetInfer::DStereoOccNetInfer(const rclcpp::Logger &logger) : logger_(logger), thread_pool_(std::make_unique<ThreadPool>(2)) {
 }
 
-int DStereoOccNetInfer::init(std::string &occ_model_file_path) {
+int DStereoOccNetInfer::init(std::string &occ_model_file_path, bool save_occ_flag, std::string &save_occ_dir) {
   int ret_code = 0;
   RCLCPP_INFO(logger_, "=> ==================== init occ model start ====================");
   // load model
@@ -36,6 +36,9 @@ int DStereoOccNetInfer::init(std::string &occ_model_file_path) {
   HB_CHECK_SUCCESS(logger_, ret_code, "prepare_output_tensor failed");
 
   RCLCPP_INFO(logger_, "=> ==================== init occ model end   ====================");
+
+  save_occ_flag_ = save_occ_flag;
+  save_occ_dir_ = save_occ_dir;
 
   return ret_code;
 }
@@ -150,6 +153,19 @@ int DStereoOccNetInfer::forward(const uint8_t *left_img_data, const uint8_t *rig
     HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNWaitTaskDone failed");
     ret_code = hbDNNReleaseTask(task_handle);
     HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNReleaseTask failed");
+  }
+
+  {
+    if (save_occ_flag_ && !save_occ_dir_.empty() && fs::exists(save_occ_dir_) && fs::is_directory(save_occ_dir_)) {
+      std::string left_img_path = save_occ_dir_ + "/" + std::to_string(header.stamp.sec) + "_" + std::to_string(header.stamp.nanosec) + "_left.png";
+      std::string right_img_path = save_occ_dir_ + "/" + std::to_string(header.stamp.sec) + "_" + std::to_string(header.stamp.nanosec) + "_right.png";
+      cv::Mat left_img, right_img;
+      ImgConvertUtils::nv12_to_bgr_mat(left_img_data, left_img, img_w, img_h);
+      ImgConvertUtils::nv12_to_bgr_mat(right_img_data, right_img, img_w, img_h);
+      cv::imwrite(left_img_path, left_img);
+      cv::imwrite(right_img_path, right_img);
+      RCLCPP_INFO_STREAM(logger_, "=> saved image to: " << save_occ_dir_);
+    }
   }
 
   // {
@@ -327,7 +343,8 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
   int B = shape[0], X = shape[1], Y = shape[2], Z = shape[3];
   RCLCPP_INFO(logger_, "=> output tensor shape: [%d, %d, %d, %d]", B, X, Y, Z);
 
-  std::vector<cv::Point3f> occ_points;
+  // std::vector<cv::Point3f> occ_points;
+  std::vector<cv::Point3i> occ_points;
   occ_points.reserve(X * Y * (Z / 2));
   for (int z = 0; z < Z; z += 2) {
     float scale1 = output_tensor.properties.scale.scaleData[z];
@@ -359,7 +376,8 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
 
         for (int i = 0; i < 4; ++i) {
           if (mask_array[i]) {
-            occ_points.emplace_back((x - X / 2) * voxel_size, (y + i) * voxel_size, (-z / 2 + Z / 2) * voxel_size);
+            // occ_points.emplace_back((x - X / 2) * voxel_size, (y + i) * voxel_size, (-z / 2 + Z / 2) * voxel_size);
+            occ_points.emplace_back(x, y + i, z / 2);
           }
         }
       }
@@ -373,7 +391,8 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
         float occ_val1 = val1 * scale1;
         float occ_val2 = val2 * scale2;
         if (occ_val2 > occ_val1) {
-          occ_points.emplace_back((x - X / 2) * voxel_size, y * voxel_size, (-z / 2 + Z / 2) * voxel_size);
+          // occ_points.emplace_back((x - X / 2) * voxel_size, y * voxel_size, (-z / 2 + Z / 2) * voxel_size);
+          occ_points.emplace_back(x, y, z / 2);
         }
       }
     }
@@ -394,15 +413,21 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
   sensor_msgs::PointCloud2Iterator<float> iter_z(*occ_grid_msg, "z");
 
   for (const auto &point : occ_points) {
-    *iter_x = point.x;
-    *iter_y = point.y;
-    *iter_z = point.z;
+    *iter_x = (point.x - X / 2) * voxel_size;
+    *iter_y = point.y * voxel_size;
+    *iter_z = (-point.z + Z / 2) * voxel_size;
     ++iter_x;
     ++iter_y;
     ++iter_z;
   }
 
   voxel_pub->publish(*occ_grid_msg);
+
+  if (save_occ_flag_ && !save_occ_dir_.empty() && fs::exists(save_occ_dir_) && fs::is_directory(save_occ_dir_)) {
+    std::string pointcloud_path = save_occ_dir_ + "/" + std::to_string(header.stamp.sec) + "_" + std::to_string(header.stamp.nanosec) + "_occgrid.txt";
+    PCUtils::save_pointcloud_to_txt(occ_points, pointcloud_path);
+    RCLCPP_INFO_STREAM(logger_, "=> saved occ to: " << save_occ_dir_);
+  }
 
   return ret_code;
 }

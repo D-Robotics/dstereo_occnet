@@ -11,7 +11,20 @@ void PCUtils::save_pointcloud_to_txt(const sensor_msgs::msg::PointCloud2::Shared
   sensor_msgs::PointCloud2ConstIterator<float> iter_z(*cloud_msg, "z");
 
   for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
-    ofs << *iter_x << " " << *iter_y << " " << *iter_z << "\n";
+    ofs << *iter_x << " " << *iter_y << " " << *iter_z << std::endl;
+  }
+
+  ofs.close();
+}
+
+void PCUtils::save_pointcloud_to_txt(const std::vector<cv::Point3i> &points, const std::string &filename) {
+  std::ofstream ofs(filename);
+  if (!ofs.is_open()) {
+    return;
+  }
+
+  for (const auto &pt : points) {
+    ofs << pt.x << " " << pt.y << " " << pt.z << std::endl;
   }
 
   ofs.close();
