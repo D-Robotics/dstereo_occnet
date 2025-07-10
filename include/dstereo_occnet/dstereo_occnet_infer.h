@@ -48,7 +48,7 @@ public:
   /**
    * @brief infer by occ model
    */
-  int forward(const uint8_t *left_img_data, const uint8_t *right_img_data, const int &img_w, const int &img_h, const std_msgs::msg::Header &header,
+  int forward(std::shared_ptr<uint8_t> left_img_data, std::shared_ptr<uint8_t> right_img_data, const int &img_w, const int &img_h, const std_msgs::msg::Header &header,
               const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size);
 
 private:
@@ -77,10 +77,14 @@ private:
 
   /**
    * @brief postprocess the output tensors
-   * @param occ_grid_msg output occupancy grid message
+   * @param header message header
+   * @param voxel_pub publisher for voxel grid
+   * @param voxel_size voxel size for occupancy grid
+   * @param occ_points output occupancy points
    * @return 0 on success, -1 on failure
    */
-  int postprocess(const std_msgs::msg::Header &header, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size);
+  int postprocess(const std_msgs::msg::Header &header, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size,
+                  std::vector<cv::Point3i> &occ_points /* out */);
 
   // ===================================== member =====================================
   /** init */

@@ -30,6 +30,7 @@ add_executable(dstereo_occnet
   src/pc_utils.cpp
   src/timer_utils.cpp
   src/thread_pool.cpp
+  src/file_utils.cpp
 )
 target_compile_features(dstereo_occnet PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 target_include_directories(dstereo_occnet PUBLIC

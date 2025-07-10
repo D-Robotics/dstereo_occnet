@@ -45,6 +45,11 @@ def generate_launch_description():
         "X5-OCC-32x64x96x2_constinput_modified.bin",
     )
 
+    local_image_dir = os.path.join(
+        get_package_share_directory("dstereo_occnet"),
+        "config"
+    )
+
     node_params = [
         {
             "name": "stereo_msg_topic",
@@ -63,7 +68,7 @@ def generate_launch_description():
         },
         {
             "name": "local_image_dir",
-            "default_value": "",
+            "default_value": local_image_dir,
             "description": "local_image_dir",
         },
         {
@@ -73,7 +78,7 @@ def generate_launch_description():
         },
         {
             "name": "save_occ_dir",
-            "default_value": "",
+            "default_value": "./occ_results",
             "description": "save_occ_dir",
         },
         {

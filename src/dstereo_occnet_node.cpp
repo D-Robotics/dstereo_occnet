@@ -10,12 +10,12 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
 
   this->declare_parameter("use_local_image", false);
   this->get_parameter("use_local_image", use_local_image_);
-  this->declare_parameter("local_image_dir", "");
+  this->declare_parameter("local_image_dir", "./occ_offline");
   this->get_parameter("local_image_dir", local_image_dir_);
 
   this->declare_parameter("save_occ_flag", false);
   this->get_parameter("save_occ_flag", save_occ_flag_);
-  this->declare_parameter("save_occ_dir", "");
+  this->declare_parameter("save_occ_dir", "./occ_results");
   this->get_parameter("save_occ_dir", save_occ_dir_);
 
   this->declare_parameter("voxel_size", 0.02);
@@ -61,65 +61,46 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
 
   int single_img_w = stereo_msg->width;
   int single_img_h = stereo_msg->height / 2;
-  // auto occ_grid_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
-  // occ_grid_msg->header.frame_id = stereo_msg->header.frame_id;
-  // occ_grid_msg->header.stamp = stereo_msg->header.stamp;
-  // stereo_msg->data.data(), stereo_msg->data.data() + (single_img_w * single_img_h * 3 / 2);
-  uint8_t *left_img_data = new uint8_t[single_img_w * single_img_h * 3 / 2];
-  uint8_t *right_img_data = new uint8_t[single_img_w * single_img_h * 3 / 2];
-  // Copy the left and right images from the stereo
-  std::memcpy(left_img_data, stereo_msg->data.data(), single_img_w * single_img_h);
-  std::memcpy(left_img_data + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height, single_img_w * single_img_h / 2);
-  std::memcpy(right_img_data, stereo_msg->data.data() + single_img_w * single_img_h, single_img_w * single_img_h);
-  std::memcpy(right_img_data + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height + single_img_w * single_img_h / 2, single_img_w * single_img_h / 2);
+  size_t single_nv12_size = single_img_w * single_img_h * 3 / 2;
+
+  auto left_img_data = std::shared_ptr<uint8_t>(new uint8_t[single_nv12_size], std::default_delete<uint8_t[]>());
+  auto right_img_data = std::shared_ptr<uint8_t>(new uint8_t[single_nv12_size], std::default_delete<uint8_t[]>());
+  {
+    ScopeProcessTime t(this->get_logger(), "mem alloc");
+    std::memcpy(left_img_data.get(), stereo_msg->data.data(), single_img_w * single_img_h);
+    std::memcpy(left_img_data.get() + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height, single_img_w * single_img_h / 2);
+    std::memcpy(right_img_data.get(), stereo_msg->data.data() + single_img_w * single_img_h, single_img_w * single_img_h);
+    std::memcpy(right_img_data.get() + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height + single_img_w * single_img_h / 2,
+                single_img_w * single_img_h / 2);
+  }
   dstereo_occnet_infer_.forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
-
-  // if (ret_code == 0) {
-  //   voxel_pub_->publish(*occ_grid_msg);
-
-  //   if (save_img_flag_) {
-  //     if (!save_img_dir_.empty() && !fs::exists(save_img_dir_)) {
-  //       bool success = fs::create_directories(save_img_dir_);
-  //       if (success) {
-  //         RCLCPP_INFO_STREAM(this->get_logger(), "=> Created directory: " << save_img_dir_);
-  //       } else {
-  //         RCLCPP_ERROR_STREAM(this->get_logger(), "=> Failed to create directory: " << save_img_dir_);
-  //         return;
-  //       }
-  //     }
-  //     std::string left_img_path = save_img_dir_ + "/left_" + std::to_string(stereo_msg->header.stamp.sec) + "_" + std::to_string(stereo_msg->header.stamp.nanosec) + ".png";
-  //     std::string right_img_path = save_img_dir_ + "/right_" + std::to_string(stereo_msg->header.stamp.sec) + "_" + std::to_string(stereo_msg->header.stamp.nanosec) + ".png";
-  //     std::string pointcloud_path = save_img_dir_ + "/occgrid_" + std::to_string(stereo_msg->header.stamp.sec) + "_" + std::to_string(stereo_msg->header.stamp.nanosec) + ".txt";
-  //     cv::Mat left_img, right_img;
-  //     ImgConvertUtils::nv12_to_bgr_mat(left_img_data, left_img, single_img_w, single_img_h);
-  //     ImgConvertUtils::nv12_to_bgr_mat(right_img_data, right_img, single_img_w, single_img_h);
-  //     cv::imwrite(left_img_path, left_img);
-  //     cv::imwrite(right_img_path, right_img);
-  //     PCUtils::save_pointcloud_to_txt(occ_grid_msg, pointcloud_path);
-  //     RCLCPP_INFO_STREAM(this->get_logger(), "=> Saved Occ Result to: " << save_img_dir_);
-  //   }
-  // }
-  delete[] left_img_data;
-  delete[] right_img_data;
 }
 
 void DStereoOccNetNode::infer_offline() {
-  while (rclcpp::ok()) {
-    std::string left_img_path = "./180_left.npy.png";
-    std::string right_img_path = "./180_right.npy.png";
-    RCLCPP_INFO_STREAM(this->get_logger(), "=> left_img_path: " << left_img_path << " , right_img_path: " << right_img_path);
-    cv::Mat left_img_bgr = cv::imread(left_img_path, cv::IMREAD_COLOR);
-    cv::Mat right_img_bgr = cv::imread(right_img_path, cv::IMREAD_COLOR);
+
+  auto img_paths = FileUtils::find_pairs(local_image_dir_);
+
+  for (auto &img_pair : img_paths) {
+    RCLCPP_INFO_STREAM(this->get_logger(), "=> processing image pair: [" << img_pair.first << ", " << img_pair.second << "]");
+    cv::Mat left_img_bgr = cv::imread(img_pair.first, cv::IMREAD_COLOR);
+    cv::Mat right_img_bgr = cv::imread(img_pair.second, cv::IMREAD_COLOR);
     if (left_img_bgr.empty() || right_img_bgr.empty()) {
-      RCLCPP_ERROR(this->get_logger(), "=> failed to read image!");
+      RCLCPP_ERROR(this->get_logger(), "=> failed to read image pair: %s and %s", img_pair.first.c_str(), img_pair.second.c_str());
+      continue;
     }
     cv::Mat left_img_nv12, right_img_nv12;
     ImgConvertUtils::bgr_to_nv12_mat(left_img_bgr, left_img_nv12);
     ImgConvertUtils::bgr_to_nv12_mat(right_img_bgr, right_img_nv12);
 
+    size_t img_size = left_img_nv12.cols * left_img_nv12.rows;
+    auto left_img_data = std::shared_ptr<uint8_t>(new uint8_t[img_size], std::default_delete<uint8_t[]>());
+    auto right_img_data = std::shared_ptr<uint8_t>(new uint8_t[img_size], std::default_delete<uint8_t[]>());
+    std::memcpy(left_img_data.get(), left_img_nv12.data, img_size);
+    std::memcpy(right_img_data.get(), right_img_nv12.data, img_size);
+
     std_msgs::msg::Header header;
     header.stamp = rclcpp::Clock().now();
     header.frame_id = "pcl_link";
-    dstereo_occnet_infer_.forward(left_img_nv12.data, right_img_nv12.data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
+    dstereo_occnet_infer_.forward(left_img_data, right_img_data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
   }
 }
