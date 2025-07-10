@@ -35,14 +35,34 @@ int DStereoOccNetInfer::init(std::string &occ_model_file_path, bool save_occ_fla
   ret_code = prepare_output_tensor();
   HB_CHECK_SUCCESS(logger_, ret_code, "prepare_output_tensor failed");
 
-  RCLCPP_INFO(logger_, "=> ==================== init occ model end   ====================");
-
   save_occ_flag_ = save_occ_flag;
   save_occ_dir_ = save_occ_dir;
-  if (save_occ_flag_ && (!fs::exists(save_occ_dir_) || !fs::is_directory(save_occ_dir_))) {
-    RCLCPP_ERROR_STREAM(logger_, "\033[31m=> save_occ_dir: " << save_occ_dir_ << " does not exist, please create it manually.\033[0m");
-    save_occ_flag_ = false;
+  // if (save_occ_flag_ && (!fs::exists(save_occ_dir_) || !fs::is_directory(save_occ_dir_))) {
+  //   RCLCPP_ERROR_STREAM(logger_, "\033[31m=> save_occ_dir: " << save_occ_dir_ << " does not exist, please create it manually.\033[0m");
+  //   save_occ_flag_ = false;
+  // }
+  if (save_occ_flag_) {
+    if (fs::exists(save_occ_dir_) && !fs::is_directory(save_occ_dir_)) {
+      RCLCPP_ERROR_STREAM(logger_, "\033[31m=> save_occ_dir: " << save_occ_dir_ << " is not a directory, please check it.\033[0m");
+      save_occ_flag_ = false;
+    } else if (!fs::exists(save_occ_dir_)) {
+      RCLCPP_INFO_STREAM(logger_, "\033[31m=> save_occ_dir: " << save_occ_dir_ << " does not exist, creating it.\033[0m");
+      try {
+        if (!fs::create_directories(save_occ_dir_)) {
+          RCLCPP_ERROR_STREAM(logger_, "\033[31m=> create save_occ_dir failed: " << save_occ_dir_ << "\033[0m");
+          save_occ_flag_ = false;
+        } else {
+          RCLCPP_INFO_STREAM(logger_, "\033[32m=> create save_occ_dir success: " << save_occ_dir_ << "\033[0m");
+        }
+      } catch (const fs::filesystem_error &e) {
+        RCLCPP_ERROR_STREAM(logger_, "\033[31m=> create save_occ_dir failed: " << save_occ_dir_ << "\033[0m");
+        save_occ_flag_ = false;
+      }
+    } else {
+      RCLCPP_INFO_STREAM(logger_, "\033[31m=> save_occ_dir: " << save_occ_dir_ << " exists.\033[0m");
+    }
   }
+  RCLCPP_INFO(logger_, "=> ==================== init occ model end   ====================");
 
   return ret_code;
 }
