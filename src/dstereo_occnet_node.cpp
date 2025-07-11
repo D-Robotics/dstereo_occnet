@@ -34,7 +34,9 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
 
   // =================================================================================================================================
   // pub & sub
-  stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, rclcpp::SensorDataQoS(), std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
+  // stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, rclcpp::SensorDataQoS(), std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
+  rclcpp::QoS qos = rclcpp::QoS(1).best_effort().durability_volatile();
+  stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, qos, std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
   voxel_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/voxel", 10);
 
   // =================================================================================================================================
@@ -59,6 +61,11 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
   }
   RCLCPP_INFO_ONCE(this->get_logger(), "=> Image width: %d, height: %d", stereo_msg->width, stereo_msg->height);
 
+  rclcpp::Time msg_time = stereo_msg->header.stamp;
+  rclcpp::Time now = this->get_clock()->now();
+  double latency_ms = (now - msg_time).seconds() * 1000.0;
+  RCLCPP_INFO(this->get_logger(), "=> before latency: %.2f ms", latency_ms);
+
   int single_img_w = stereo_msg->width;
   int single_img_h = stereo_msg->height / 2;
   size_t single_nv12_size = single_img_w * single_img_h * 3 / 2;
@@ -74,6 +81,10 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
                 single_img_w * single_img_h / 2);
   }
   dstereo_occnet_infer_.forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
+
+  now = this->get_clock()->now();
+  latency_ms = (now - msg_time).seconds() * 1000.0;
+  RCLCPP_INFO(this->get_logger(), "=> after latency: %.2f ms", latency_ms);
 }
 
 void DStereoOccNetNode::infer_offline() {
