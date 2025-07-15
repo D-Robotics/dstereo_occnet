@@ -8,8 +8,7 @@ std::vector<std::pair<std::string, std::string>> FileUtils::find_pairs(const std
   }
 
   for (const auto &entry : fs::directory_iterator(folder_path)) {
-    if (!entry.is_regular_file())
-      continue;
+    if (!entry.is_regular_file()) continue;
 
     auto path = entry.path();
     std::string filename = path.filename().string();
@@ -25,6 +24,8 @@ std::vector<std::pair<std::string, std::string>> FileUtils::find_pairs(const std
       }
     }
   }
+
+  std::sort(file_pairs.begin(), file_pairs.end(), [](const auto &a, const auto &b) { return fs::path(a.first).filename().string() < fs::path(b.first).filename().string(); });
 
   return file_pairs;
 }

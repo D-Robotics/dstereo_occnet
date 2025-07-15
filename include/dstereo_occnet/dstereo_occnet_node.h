@@ -51,6 +51,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr stereo_msg_sub_ = nullptr;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_ = nullptr;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr voxel_pub_ = nullptr;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stereo_msg_pub_ = nullptr;
 
   /* occ model */
   std::string occ_model_file_path_;

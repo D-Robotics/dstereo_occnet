@@ -45,9 +45,13 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   // pub & sub
   // stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, rclcpp::SensorDataQoS(), std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
   rclcpp::QoS qos = rclcpp::QoS(1).best_effort().durability_volatile();
-  stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, qos, std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
   camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 10, std::bind(&DStereoOccNetNode::camera_info_cb, this, std::placeholders::_1));
   voxel_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/voxel", 10);
+  if (use_local_image_) {
+    stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>(stereo_msg_topic_, 10);
+  } else {
+    stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, qos, std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
+  }
 
   // =================================================================================================================================
   /* init infer class */
@@ -105,13 +109,16 @@ void DStereoOccNetNode::infer_offline() {
     RCLCPP_INFO_STREAM(this->get_logger(), "=> processing image pair: [" << img_pair.first << ", " << img_pair.second << "]");
     cv::Mat left_img_bgr = cv::imread(img_pair.first, cv::IMREAD_COLOR);
     cv::Mat right_img_bgr = cv::imread(img_pair.second, cv::IMREAD_COLOR);
+    cv::Mat combine_img_bgr;
+    cv::vconcat(left_img_bgr, right_img_bgr, combine_img_bgr);
     if (left_img_bgr.empty() || right_img_bgr.empty()) {
       RCLCPP_ERROR(this->get_logger(), "=> failed to read image pair: %s and %s", img_pair.first.c_str(), img_pair.second.c_str());
       continue;
     }
-    cv::Mat left_img_nv12, right_img_nv12;
+    cv::Mat left_img_nv12, right_img_nv12, combine_img_nv12;
     ImgConvertUtils::bgr_to_nv12_mat(left_img_bgr, left_img_nv12);
     ImgConvertUtils::bgr_to_nv12_mat(right_img_bgr, right_img_nv12);
+    ImgConvertUtils::bgr_to_nv12_mat(combine_img_bgr, combine_img_nv12);
 
     size_t img_size = left_img_nv12.cols * left_img_nv12.rows;
     auto left_img_data = std::shared_ptr<uint8_t>(new uint8_t[img_size], std::default_delete<uint8_t[]>());
@@ -123,6 +130,18 @@ void DStereoOccNetNode::infer_offline() {
     header.stamp = rclcpp::Clock().now();
     header.frame_id = "pcl_link";
     dstereo_occnet_infer_.forward(left_img_data, right_img_data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
+
+    sensor_msgs::msg::Image stereo_msg;
+    stereo_msg.header = header;
+    stereo_msg.height = combine_img_bgr.rows;
+    stereo_msg.width = combine_img_bgr.cols;
+    stereo_msg.encoding = "nv12";
+    stereo_msg.is_bigendian = false;
+    stereo_msg.step = combine_img_nv12.cols;
+    stereo_msg.data.resize(combine_img_nv12.total() * combine_img_nv12.elemSize());
+    std::memcpy(stereo_msg.data.data(), combine_img_nv12.data, stereo_msg.data.size());
+    stereo_msg_pub_->publish(stereo_msg);
+    // rclcpp::sleep_for(std::chrono::milliseconds(10000 / 6));
   }
 }
 

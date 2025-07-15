@@ -20,7 +20,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python import get_package_share_directory
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 
 
 def generate_launch_description():
@@ -53,6 +53,7 @@ def generate_launch_description():
             "dst_width": "640",
             "dst_height": "352",
         }.items(),
+        condition=UnlessCondition(LaunchConfiguration("use_local_image")),
     )
 
     # OccNet algorithm node

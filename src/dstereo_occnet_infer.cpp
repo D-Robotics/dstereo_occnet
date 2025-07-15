@@ -103,9 +103,7 @@ int DStereoOccNetInfer::prepare_input_tensor() {
       model_input_h_ = properties.validShape.dimensionSize[2];
       model_input_w_ = properties.validShape.dimensionSize[3];
       break;
-    default:
-      RCLCPP_ERROR(logger_, "=> input tensor layout is not in [HB_DNN_LAYOUT_NHWC, HB_DNN_LAYOUT_NCHW]");
-      return -1;
+    default: RCLCPP_ERROR(logger_, "=> input tensor layout is not in [HB_DNN_LAYOUT_NHWC, HB_DNN_LAYOUT_NCHW]"); return -1;
     }
     tensor.properties.validShape.numDimensions = 4;
     tensor.properties.validShape.dimensionSize[0] = 1;
