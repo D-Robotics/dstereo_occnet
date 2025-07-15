@@ -5,6 +5,8 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   /* param */
   this->declare_parameter("stereo_msg_topic", "/image_combine_raw");
   this->get_parameter("stereo_msg_topic", stereo_msg_topic_);
+  this->declare_parameter("camera_info_topic", "/image_combine_raw/camera_info");
+  this->get_parameter("camera_info_topic", camera_info_topic_);
   this->declare_parameter("occ_model_file_path", "");
   this->get_parameter("occ_model_file_path", occ_model_file_path_);
 
@@ -17,6 +19,11 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   this->get_parameter("save_occ_flag", save_occ_flag_);
   this->declare_parameter("save_occ_dir", "./occ_results");
   this->get_parameter("save_occ_dir", save_occ_dir_);
+  this->declare_parameter("save_freq", 1);
+  this->get_parameter("save_freq", save_freq_);
+  this->declare_parameter("save_total", -1);
+  this->get_parameter("save_total", save_total_);
+  if (save_freq_ < 0) save_freq_ = 1; // Ensure save frequency is at least 1
 
   this->declare_parameter("voxel_size", 0.02);
   this->get_parameter("voxel_size", voxel_size_);
@@ -29,6 +36,8 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
                                                      << "=> local_image_dir: " << local_image_dir_ << std::endl
                                                      << "=> save_occ_flag: " << (save_occ_flag_ ? "true" : "false") << std::endl
                                                      << "=> save_occ_dir: " << save_occ_dir_ << std::endl
+                                                     << "=> save_freq: " << save_freq_ << std::endl
+                                                     << "=> save_total: " << save_total_ << std::endl
                                                      << "=> voxel_size: " << voxel_size_ << "m" << std::endl
                                                      << "\033[0m");
 
@@ -37,12 +46,13 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   // stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, rclcpp::SensorDataQoS(), std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
   rclcpp::QoS qos = rclcpp::QoS(1).best_effort().durability_volatile();
   stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, qos, std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
+  camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 10, std::bind(&DStereoOccNetNode::camera_info_cb, this, std::placeholders::_1));
   voxel_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/voxel", 10);
 
   // =================================================================================================================================
   /* init infer class */
   int ret_code = 0;
-  ret_code = dstereo_occnet_infer_.init(occ_model_file_path_, save_occ_flag_, save_occ_dir_);
+  ret_code = dstereo_occnet_infer_.init(occ_model_file_path_, save_occ_flag_, save_occ_dir_, save_freq_, save_total_);
   if (ret_code == -1) {
     RCLCPP_ERROR(this->get_logger(), "=> Failed to initialize dstereo_occnet Model, shutting down node.");
     rclcpp::shutdown();
@@ -114,4 +124,14 @@ void DStereoOccNetNode::infer_offline() {
     header.frame_id = "pcl_link";
     dstereo_occnet_infer_.forward(left_img_data, right_img_data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
   }
+}
+
+void DStereoOccNetNode::camera_info_cb(const sensor_msgs::msg::CameraInfo::ConstSharedPtr &camera_info_msg) {
+  double camera_fx = camera_info_msg->p[0];
+  double camera_fy = camera_info_msg->p[5];
+  double camera_cx = camera_info_msg->p[2];
+  double camera_cy = camera_info_msg->p[6];
+  double baseline = camera_info_msg->p[3] / camera_fx;
+  dstereo_occnet_infer_.set_cam_intr(camera_fx, camera_fy, camera_cx, camera_cy, baseline);
+  RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> sub cam intr : fx=%.4f, fy=%.4f, cx=%.4f, cy=%.4f, baseline=%.2f\033[0m", camera_fx, camera_fy, camera_cx, camera_cy, baseline);
 }

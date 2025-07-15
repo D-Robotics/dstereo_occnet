@@ -1,9 +1,10 @@
 #include "dstereo_occnet/dstereo_occnet_infer.h"
 
-DStereoOccNetInfer::DStereoOccNetInfer(const rclcpp::Logger &logger) : logger_(logger), thread_pool_(std::make_unique<ThreadPool>(5)) {
+DStereoOccNetInfer::DStereoOccNetInfer(const rclcpp::Logger &logger) : logger_(logger), thread_pool_(std::make_unique<ThreadPool>(5)), save_count_(0) {
+  RCLCPP_INFO(logger_, "=> DStereoOccNetInfer initialized");
 }
 
-int DStereoOccNetInfer::init(std::string &occ_model_file_path, bool save_occ_flag, std::string &save_occ_dir) {
+int DStereoOccNetInfer::init(std::string &occ_model_file_path, bool save_occ_flag, std::string &save_occ_dir, const int &save_freq, const int &save_total) {
   int ret_code = 0;
   RCLCPP_INFO(logger_, "=> ==================== init occ model start ====================");
   // load model
@@ -37,6 +38,8 @@ int DStereoOccNetInfer::init(std::string &occ_model_file_path, bool save_occ_fla
 
   save_occ_flag_ = save_occ_flag;
   save_occ_dir_ = save_occ_dir;
+  save_freq_ = save_freq;
+  save_total_ = save_total;
   // if (save_occ_flag_ && (!fs::exists(save_occ_dir_) || !fs::is_directory(save_occ_dir_))) {
   //   RCLCPP_ERROR_STREAM(logger_, "\033[31m=> save_occ_dir: " << save_occ_dir_ << " does not exist, please create it manually.\033[0m");
   //   save_occ_flag_ = false;
@@ -188,21 +191,40 @@ int DStereoOccNetInfer::forward(std::shared_ptr<uint8_t> left_img_data, std::sha
 
     {
       if (save_occ_flag_ && fs::exists(save_occ_dir_) && fs::is_directory(save_occ_dir_)) {
+        std::unique_lock<std::mutex> lock(mtx_);
         ScopeProcessTime t(logger_, "save occ");
-        std::ostringstream ss_nsec;
-        ss_nsec << std::setfill('0') << std::setw(9) << header.stamp.nanosec;
-        std::string nsec_str = ss_nsec.str();
-        std::string pointcloud_path = save_occ_dir_ + "/" + std::to_string(header.stamp.sec) + "_" + nsec_str + "_occgrid.txt";
-        std::string left_img_path = save_occ_dir_ + "/" + std::to_string(header.stamp.sec) + "_" + nsec_str + "_left.png";
-        std::string right_img_path = save_occ_dir_ + "/" + std::to_string(header.stamp.sec) + "_" + nsec_str + "_right.png";
-        cv::Mat left_img, right_img;
 
-        ImgConvertUtils::nv12_to_bgr_mat(left_img_data.get(), left_img, img_w, img_h);
-        ImgConvertUtils::nv12_to_bgr_mat(right_img_data.get(), right_img, img_w, img_h);
-        cv::imwrite(left_img_path, left_img);
-        cv::imwrite(right_img_path, right_img);
-        PCUtils::save_pointcloud_to_txt(occ_points, pointcloud_path);
-        RCLCPP_INFO_STREAM(logger_, "=> saved occ to: " << save_occ_dir_);
+        if (save_count_ == 0) {
+          std::string cam_intr_file = save_occ_dir_ + "/cam_intr.txt";
+          PCUtils::save_cam_intr_to_txt(cam_intr_file, camera_fx_, camera_fy_, camera_cx_, camera_cy_, baseline_);
+          RCLCPP_INFO_STREAM(logger_, "\033[32m=> saved cam intr to: " << cam_intr_file << "\033[0m");
+        }
+
+        if (save_count_ % save_freq_ == 0) {
+          std::ostringstream ss_nsec;
+          std::ostringstream ss_cnt;
+          ss_nsec << std::setfill('0') << std::setw(9) << header.stamp.nanosec;
+          ss_cnt << std::setfill('0') << std::setw(6) << save_count_;
+          std::string nsec_str = ss_nsec.str();
+          std::string cnt_str = ss_cnt.str();
+          std::string pointcloud_path = save_occ_dir_ + "/" + cnt_str + "_" + std::to_string(header.stamp.sec) + "_" + nsec_str + "_occgrid.txt";
+          std::string left_img_path = save_occ_dir_ + "/" + cnt_str + "_" + std::to_string(header.stamp.sec) + "_" + nsec_str + "_left.png";
+          std::string right_img_path = save_occ_dir_ + "/" + cnt_str + "_" + std::to_string(header.stamp.sec) + "_" + nsec_str + "_right.png";
+          cv::Mat left_img, right_img;
+
+          ImgConvertUtils::nv12_to_bgr_mat(left_img_data.get(), left_img, img_w, img_h);
+          ImgConvertUtils::nv12_to_bgr_mat(right_img_data.get(), right_img, img_w, img_h);
+          cv::imwrite(left_img_path, left_img);
+          cv::imwrite(right_img_path, right_img);
+          PCUtils::save_pointcloud_to_txt(occ_points, pointcloud_path);
+          RCLCPP_INFO_STREAM(logger_, "\033[32m=> saved occ to: " << save_occ_dir_ << ", saved count: " << save_count_ << "\033[0m");
+        }
+
+        if (save_total_ > 0 && (save_count_ / save_freq_ + 1) >= save_total_) {
+          RCLCPP_INFO(logger_, "\033[32m=> save total count reached, stopping saving occupancy grid.\033[0m");
+          save_occ_flag_ = false;
+        }
+        save_count_++;
       }
     }
   });
@@ -433,4 +455,12 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
   voxel_pub->publish(*occ_grid_msg);
 
   return ret_code;
+}
+
+void DStereoOccNetInfer::set_cam_intr(const double &fx, const double &fy, const double &cx, const double &cy, const double &baseline) {
+  camera_fx_ = fx;
+  camera_fy_ = fy;
+  camera_cx_ = cx;
+  camera_cy_ = cy;
+  baseline_ = baseline;
 }

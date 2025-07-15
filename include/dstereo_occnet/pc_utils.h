@@ -13,6 +13,8 @@ public:
 
   // utility function
 
+  static void save_cam_intr_to_txt(const std::string &filename, const double &fx, const double &fy, const double &cx, const double &cy, const double &baseline);
+
   static void save_pointcloud_to_txt(const sensor_msgs::msg::PointCloud2::SharedPtr &cloud_msg, const std::string &filename);
 
   static void save_pointcloud_to_txt(const std::vector<cv::Point3i> &points, const std::string &filename);

@@ -46,8 +46,7 @@ def generate_launch_description():
     )
 
     local_image_dir = os.path.join(
-        get_package_share_directory("dstereo_occnet"),
-        "config"
+        get_package_share_directory("dstereo_occnet"), "config"
     )
 
     node_params = [
@@ -55,6 +54,11 @@ def generate_launch_description():
             "name": "stereo_msg_topic",
             "default_value": "/image_combine_raw",
             "description": "stereo_msg_topic",
+        },
+        {
+            "name": "camera_info_topic",
+            "default_value": "/image_combine_raw/camera_info",
+            "description": "camera_info_topic",
         },
         {
             "name": "occ_model_file_path",
@@ -80,6 +84,16 @@ def generate_launch_description():
             "name": "save_occ_dir",
             "default_value": "./occ_results",
             "description": "save_occ_dir",
+        },
+        {
+            "name": "save_freq",
+            "default_value": "1",
+            "description": "save_freq",
+        },
+        {
+            "name": "save_total",
+            "default_value": "-1",
+            "description": "save_total",
         },
         {
             "name": "voxel_size",

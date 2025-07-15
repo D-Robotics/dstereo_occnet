@@ -41,15 +41,26 @@ public:
    * @param occ_model_file_path occupancy model file path
    * @param save_occ_flag flag to save occupancy grid result
    * @param save_occ_dir directory to save occupancy grid result
+   * @param save_freq frequency to save occupancy grid result
    * @return 0 on success, -1 on failure
    */
-  int init(std::string &occ_model_file_path, bool save_occ_flag, std::string &save_occ_dir);
+  int init(std::string &occ_model_file_path, bool save_occ_flag, std::string &save_occ_dir, const int &save_freq, const int &save_total = -1);
 
   /**
    * @brief infer by occ model
    */
   int forward(std::shared_ptr<uint8_t> left_img_data, std::shared_ptr<uint8_t> right_img_data, const int &img_w, const int &img_h, const std_msgs::msg::Header &header,
               const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size);
+
+  /**
+   * @brief set camera intrinsic parameters
+   * @param fx focal length in x direction
+   * @param fy focal length in y direction
+   * @param cx optical center in x direction
+   * @param cy optical center in y direction
+   * @param baseline baseline distance between two cameras
+   */
+  void set_cam_intr(const double &fx, const double &fy, const double &cx, const double &cy, const double &baseline);
 
 private:
   // ===================================== func =======================================
@@ -110,6 +121,17 @@ private:
   /* save result */
   bool save_occ_flag_;
   std::string save_occ_dir_;
+  int save_freq_;
+  int save_total_;
+  int save_count_ = 0;
+  std::mutex mtx_;
+
+  /* cam intr */
+  double camera_fx_ = 0.0;
+  double camera_fy_ = 0.0;
+  double camera_cx_ = 0.0;
+  double camera_cy_ = 0.0;
+  double baseline_ = 0.0;
 };
 
 #endif

@@ -1,5 +1,16 @@
 #include "dstereo_occnet/pc_utils.h"
 
+void PCUtils::save_cam_intr_to_txt(const std::string &filename, const double &fx, const double &fy, const double &cx, const double &cy, const double &baseline) {
+  std::ofstream ofs(filename);
+  if (!ofs.is_open()) {
+    return;
+  }
+  std::stringstream ss;
+  ss << "[fx, fy, cx, cy, baseline] = [" << fx << ", " << fy << ", " << cx << ", " << cy << ", " << baseline << "]" << std::endl;
+  ofs << ss.str();
+  ofs.close();
+}
+
 void PCUtils::save_pointcloud_to_txt(const sensor_msgs::msg::PointCloud2::SharedPtr &cloud_msg, const std::string &filename) {
   std::ofstream ofs(filename);
   if (!ofs.is_open()) {
