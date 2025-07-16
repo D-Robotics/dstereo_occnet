@@ -60,6 +60,7 @@ private:
   /* offline */
   bool use_local_image_;
   std::string local_image_dir_;
+  rclcpp::TimerBase::SharedPtr timer_ = nullptr;
 
   /* save result */
   bool save_occ_flag_;

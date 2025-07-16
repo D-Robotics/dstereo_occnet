@@ -3,12 +3,12 @@
 DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp::NodeOptions &node_options) : Node(node_name, node_options), dstereo_occnet_infer_(this->get_logger()) {
   // =================================================================================================================================
   /* param */
+  this->declare_parameter("occ_model_file_path", "");
+  this->get_parameter("occ_model_file_path", occ_model_file_path_);
   this->declare_parameter("stereo_msg_topic", "/image_combine_raw");
   this->get_parameter("stereo_msg_topic", stereo_msg_topic_);
   this->declare_parameter("camera_info_topic", "/image_combine_raw/camera_info");
   this->get_parameter("camera_info_topic", camera_info_topic_);
-  this->declare_parameter("occ_model_file_path", "");
-  this->get_parameter("occ_model_file_path", occ_model_file_path_);
 
   this->declare_parameter("use_local_image", false);
   this->get_parameter("use_local_image", use_local_image_);
@@ -32,6 +32,7 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
                                                      << node_name << " param: " << std::endl
                                                      << "=> occ_model_file_path: " << occ_model_file_path_ << std::endl
                                                      << "=> stereo_msg_topic: " << stereo_msg_topic_ << std::endl
+                                                     << "=> camera_info_topic: " << camera_info_topic_ << std::endl
                                                      << "=> use_local_image: " << (use_local_image_ ? "true" : "false") << std::endl
                                                      << "=> local_image_dir: " << local_image_dir_ << std::endl
                                                      << "=> save_occ_flag: " << (save_occ_flag_ ? "true" : "false") << std::endl
@@ -48,6 +49,11 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 10, std::bind(&DStereoOccNetNode::camera_info_cb, this, std::placeholders::_1));
   voxel_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/voxel", 10);
   if (use_local_image_) {
+    if (local_image_dir_ == save_occ_dir_) {
+      RCLCPP_ERROR(this->get_logger(), "\033[31m=> local_image_dir and save_occ_dir cannot be the same, please check your parameters.\033[0m");
+      rclcpp::shutdown();
+      return;
+    }
     stereo_msg_pub_ = this->create_publisher<sensor_msgs::msg::Image>(stereo_msg_topic_, 10);
   } else {
     stereo_msg_sub_ = this->create_subscription<sensor_msgs::msg::Image>(stereo_msg_topic_, qos, std::bind(&DStereoOccNetNode::infer_online, this, std::placeholders::_1));
@@ -64,7 +70,10 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   }
 
   if (use_local_image_) {
-    infer_offline();
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
+      timer_->cancel();
+      this->infer_offline();
+    });
   }
 }
 
@@ -106,6 +115,7 @@ void DStereoOccNetNode::infer_offline() {
   auto img_paths = FileUtils::find_pairs(local_image_dir_);
 
   for (auto &img_pair : img_paths) {
+    if (rclcpp::ok() == false) break;
     RCLCPP_INFO_STREAM(this->get_logger(), "=> processing image pair: [" << img_pair.first << ", " << img_pair.second << "]");
     cv::Mat left_img_bgr = cv::imread(img_pair.first, cv::IMREAD_COLOR);
     cv::Mat right_img_bgr = cv::imread(img_pair.second, cv::IMREAD_COLOR);
@@ -141,7 +151,6 @@ void DStereoOccNetNode::infer_offline() {
     stereo_msg.data.resize(combine_img_nv12.total() * combine_img_nv12.elemSize());
     std::memcpy(stereo_msg.data.data(), combine_img_nv12.data, stereo_msg.data.size());
     stereo_msg_pub_->publish(stereo_msg);
-    // rclcpp::sleep_for(std::chrono::milliseconds(10000 / 6));
   }
 }
 
