@@ -97,6 +97,19 @@ private:
   int postprocess(const std_msgs::msg::Header &header, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr &voxel_pub, const float &voxel_size,
                   std::vector<cv::Point3i> &occ_points /* out */);
 
+  /**
+   * @brief save occupancy grid result
+   * @param left_img_data left image data in nv12 format
+   * @param right_img_data right image data in nv12 format
+   * @param occ_points occupancy points
+   * @param header message header
+   * @param img_w image width
+   * @param img_h image height
+   * @return void
+   */
+  void save_occ_result(const std::shared_ptr<uint8_t> &left_img_data, const std::shared_ptr<uint8_t> &right_img_data, const std::vector<cv::Point3i> &occ_points, const std_msgs::msg::Header &header,
+                       int img_w, int img_h);
+
   // ===================================== member =====================================
   /** init */
   rclcpp::Logger logger_;
@@ -116,7 +129,8 @@ private:
   int32_t input_tensor_type_;
 
   /** thread pool */
-  std::unique_ptr<ThreadPool> thread_pool_;
+  std::unique_ptr<ThreadPool> postprocess_thread_pool_;
+  std::unique_ptr<ThreadPool> save_thread_pool_;
 
   /* save result */
   bool save_occ_flag_;
