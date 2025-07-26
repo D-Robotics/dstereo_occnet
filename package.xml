@@ -3,13 +3,14 @@
 <package format="3">
   <name>dstereo_occnet</name>
   <version>0.0.1</version>
-  <description>DOccupancy Model</description>
+  <description>DStereo Occupancy Model</description>
   <maintainer email="zhikang.zeng@d-robotics.cc">zhikang.zeng</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>

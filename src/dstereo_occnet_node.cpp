@@ -1,6 +1,6 @@
 #include "dstereo_occnet/dstereo_occnet_node.h"
 
-DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp::NodeOptions &node_options) : Node(node_name, node_options), dstereo_occnet_infer_(this->get_logger()) {
+DStereoOccNetNode::DStereoOccNetNode(const rclcpp::NodeOptions &node_options, const std::string &node_name) : Node(node_name, node_options) {
   // =================================================================================================================================
   /* param */
   this->declare_parameter("occ_model_file_path", "");
@@ -62,7 +62,8 @@ DStereoOccNetNode::DStereoOccNetNode(const std::string &node_name, const rclcpp:
   // =================================================================================================================================
   /* init infer class */
   int ret_code = 0;
-  ret_code = dstereo_occnet_infer_.init(occ_model_file_path_, save_occ_flag_, save_occ_dir_, save_freq_, save_total_);
+  dstereo_occnet_infer_ = std::make_shared<DStereoOccNetInfer>(this->get_logger());
+  ret_code = dstereo_occnet_infer_->init(occ_model_file_path_, save_occ_flag_, save_occ_dir_, save_freq_, save_total_);
   if (ret_code == -1) {
     RCLCPP_ERROR(this->get_logger(), "=> Failed to initialize dstereo_occnet Model, shutting down node.");
     rclcpp::shutdown();
@@ -103,7 +104,7 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
     std::memcpy(right_img_data.get() + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height + single_img_w * single_img_h / 2,
                 single_img_w * single_img_h / 2);
   }
-  dstereo_occnet_infer_.forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
+  dstereo_occnet_infer_->forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
 
   now = this->get_clock()->now();
   latency_ms = (now - msg_time).seconds() * 1000.0;
@@ -139,7 +140,7 @@ void DStereoOccNetNode::infer_offline() {
     std_msgs::msg::Header header;
     header.stamp = rclcpp::Clock().now();
     header.frame_id = "pcl_link";
-    dstereo_occnet_infer_.forward(left_img_data, right_img_data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
+    dstereo_occnet_infer_->forward(left_img_data, right_img_data, left_img_bgr.cols, left_img_bgr.rows, header, voxel_pub_, voxel_size_);
 
     sensor_msgs::msg::Image stereo_msg;
     stereo_msg.header = header;
@@ -160,6 +161,9 @@ void DStereoOccNetNode::camera_info_cb(const sensor_msgs::msg::CameraInfo::Const
   double camera_cx = camera_info_msg->p[2];
   double camera_cy = camera_info_msg->p[6];
   double baseline = camera_info_msg->p[3] / camera_fx;
-  dstereo_occnet_infer_.set_cam_intr(camera_fx, camera_fy, camera_cx, camera_cy, baseline);
+  dstereo_occnet_infer_->set_cam_intr(camera_fx, camera_fy, camera_cx, camera_cy, baseline);
   RCLCPP_INFO_ONCE(this->get_logger(), "\033[31m=> sub cam intr : fx=%.4f, fy=%.4f, cx=%.4f, cy=%.4f, baseline=%.2f\033[0m", camera_fx, camera_fy, camera_cx, camera_cy, baseline);
 }
+
+#include "rclcpp_components/register_node_macro.hpp"
+RCLCPP_COMPONENTS_REGISTER_NODE(DStereoOccNetNode)

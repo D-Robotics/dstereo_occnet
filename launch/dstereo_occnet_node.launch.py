@@ -107,7 +107,7 @@ def generate_launch_description():
     launch.append(
         Node(
             package="dstereo_occnet",
-            executable="dstereo_occnet",
+            executable="dstereo_occnet_node",
             output="screen",
             parameters=[set_configurable_parameters(node_params)],
             arguments=["--ros-args", "--log-level", LaunchConfiguration("log_level")],

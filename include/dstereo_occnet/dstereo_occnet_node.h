@@ -19,7 +19,7 @@
  */
 class DStereoOccNetNode : public rclcpp::Node {
 public:
-  explicit DStereoOccNetNode(const std::string &node_name = "dstereo_occnet_node", const rclcpp::NodeOptions &node_options = rclcpp::NodeOptions());
+  explicit DStereoOccNetNode(const rclcpp::NodeOptions &node_options = rclcpp::NodeOptions(), const std::string &node_name = "dstereo_occnet_node");
   ~DStereoOccNetNode() = default;
 
 private:
@@ -55,7 +55,7 @@ private:
 
   /* occ model */
   std::string occ_model_file_path_;
-  DStereoOccNetInfer dstereo_occnet_infer_;
+  std::shared_ptr<DStereoOccNetInfer> dstereo_occnet_infer_;
 
   /* offline */
   bool use_local_image_;
