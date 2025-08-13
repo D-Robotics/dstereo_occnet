@@ -4,14 +4,14 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
-#include "dnn/hb_dnn.h"
 #include "opencv2/opencv.hpp"
-#include "dstereo_occnet/bpu_utils.h"
+#include "magic_enum/magic_enum.hpp"
 #include "dstereo_occnet/timer_utils.h"
 #include "dstereo_occnet/thread_pool.h"
 #include "dstereo_occnet/img_convert_utils.h"
 #include "dstereo_occnet/pc_utils.h"
 #include <filesystem>
+#include "dstereo_occnet/dnn_platform.h"
 
 namespace fs = std::filesystem;
 

@@ -11,8 +11,8 @@ public:
   ~ScopeProcessTime();
 
 private:
-  rclcpp::Logger logger_;
   std::string name_;
+  rclcpp::Logger logger_;
   std::chrono::high_resolution_clock::time_point start_;
 };
 

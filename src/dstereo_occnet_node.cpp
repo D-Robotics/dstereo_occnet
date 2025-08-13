@@ -104,7 +104,11 @@ void DStereoOccNetNode::infer_online(const sensor_msgs::msg::Image::ConstSharedP
     std::memcpy(right_img_data.get() + single_img_w * single_img_h, stereo_msg->data.data() + stereo_msg->width * stereo_msg->height + single_img_w * single_img_h / 2,
                 single_img_w * single_img_h / 2);
   }
-  dstereo_occnet_infer_->forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
+  int ret_code = dstereo_occnet_infer_->forward(left_img_data, right_img_data, single_img_w, single_img_h, stereo_msg->header, voxel_pub_, voxel_size_);
+  if (ret_code != 0) {
+    rclcpp::shutdown();
+    return;
+  }
 
   now = this->get_clock()->now();
   latency_ms = (now - msg_time).seconds() * 1000.0;

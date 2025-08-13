@@ -5,12 +5,26 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(DNN_LIBS "")
+if(PLATFORM_S100)
+  message("=> build platform S100")
+  add_definitions(-DPLATFORM_S100)
+  list(APPEND DNN_LIBS dnn hbucp)
+else()
+  message("=> build platform X5")
+  add_definitions(-DPLATFORM_X5)
+  list(APPEND DNN_LIBS dnn cnn_intf hbrt_bayes_aarch64)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(rclcpp_components REQUIRED)
+
+set(SYS_ROOT ${CMAKE_SYSROOT})
+message("SYS_ROOT is " ${SYS_ROOT})
 include_directories(
   ${SYS_ROOT}/usr/include
   ${SYS_ROOT}/usr/hobot/include
@@ -21,18 +35,14 @@ link_directories(
   ${SYS_ROOT}/usr/lib
 )
 
-# add executable
-# add_executable(dstereo_occnet
-#   src/main.cpp
-#   src/dstereo_occnet_node.cpp
-#   src/dstereo_occnet_infer.cpp
-#   src/bpu_utils.cpp
-#   src/img_convert_utils.cpp
-#   src/pc_utils.cpp
-#   src/timer_utils.cpp
-#   src/thread_pool.cpp
-#   src/file_utils.cpp
-# )
+include(FetchContent)
+FetchContent_Declare(
+  magic_enum
+  GIT_REPOSITORY https://github.com/Neargye/magic_enum.git
+  GIT_TAG v0.9.7
+)
+FetchContent_MakeAvailable(magic_enum)
+
 # add libraries
 add_library(${PROJECT_NAME}_component SHARED
   src/dstereo_occnet_node.cpp
@@ -55,7 +65,8 @@ ament_target_dependencies(${PROJECT_NAME}_component
   sensor_msgs
 )
 target_link_libraries(${PROJECT_NAME}_component
-  dnn
+  ${DNN_LIBS}
+  magic_enum::magic_enum
 )
 # compile executable file
 rclcpp_components_register_node(${PROJECT_NAME}_component

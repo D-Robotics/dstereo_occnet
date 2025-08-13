@@ -76,38 +76,56 @@ int DStereoOccNetInfer::init(std::string &occ_model_file_path, bool save_occ_fla
 int DStereoOccNetInfer::prepare_input_tensor() {
   int ret_code = 0;
   RCLCPP_INFO(logger_, "=> ----- prepare_input_tensor_nv12 -----");
-  // check the type of input tensor
+
+  // get model input size from input tensor[0]
   hbDNNTensorProperties properties;
   ret_code = hbDNNGetInputTensorProperties(&properties, dnn_handle_, 0);
-  HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNGetInputTensorProperties failed");
-  RCLCPP_INFO_STREAM(logger_, "=> input tensor type is " << BPUUtils::tensor_type_to_str(properties.tensorType));
-  if ((properties.tensorType != HB_DNN_IMG_TYPE_NV12) && (properties.tensorType != HB_DNN_IMG_TYPE_NV12_SEPARATE)) {
-    RCLCPP_ERROR(logger_, "=> input tensor type is not in [HB_DNN_IMG_TYPE_NV12, HB_DNN_IMG_TYPE_NV12_SEPARATE]");
-    return -1;
-  }
-  RCLCPP_INFO_STREAM(logger_, "=> input tensor memsize: " << properties.alignedByteSize);
-  input_tensor_type_ = properties.tensorType;
-  // int dims = properties.validShape.numDimensions;
-  // int *shape = properties.validShape.dimensionSize;
-  // RCLCPP_INFO(logger_, "=> input tensor dims: %d", dims);
-  // RCLCPP_INFO(logger_, "=> input tensor shape: [%d, %d, %d, %d]", shape[0], shape[1], shape[2], shape[3]);
+#ifdef PLATFORM_S100
+  properties.quantizeAxis = 3;
+#endif
+  hbGetInputTensorHW(properties, model_input_h_, model_input_w_);
+  RCLCPP_INFO_STREAM(logger_, "=> model_input_h: " << model_input_h_ << ", model_input_w: " << model_input_w_);
 
   // allocate memory for input tensor
-  input_tensors_.resize(2);
-  for (auto &tensor : input_tensors_) {
+  input_tensors_.resize(input_count_);
+  for (int i = 0; i < input_count_; i++) {
+    auto &tensor = input_tensors_[i];
+    // get input tensor properties
+    ret_code = hbDNNGetInputTensorProperties(&properties, dnn_handle_, i);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNGetInputTensorProperties failed");
+    RCLCPP_INFO_STREAM(logger_, "=> input tensor type is " << magic_enum::enum_name(static_cast<hbDNNDataType>(properties.tensorType)));
+    input_tensor_type_ = properties.tensorType;
+
+#ifdef PLATFORM_X5
+    if ((properties.tensorType != HB_DNN_IMG_TYPE_NV12) && (properties.tensorType != HB_DNN_IMG_TYPE_NV12_SEPARATE)) {
+      RCLCPP_ERROR(logger_, "=> input tensor type is not in [HB_DNN_IMG_TYPE_NV12, HB_DNN_IMG_TYPE_NV12_SEPARATE]");
+      return -1;
+    }
+#endif
+
+#ifdef PLATFORM_S100
+    if ((properties.tensorType != HB_DNN_TENSOR_TYPE_U8)) {
+      RCLCPP_ERROR(logger_, "=> input tensor type is not in [HB_DNN_TENSOR_TYPE_U8]");
+      return -1;
+    }
+#endif
+
+#ifdef PLATFORM_S100
+    properties.quantizeAxis = 3;
+    properties.alignedByteSize = properties.validShape.dimensionSize[0] * properties.validShape.dimensionSize[1] * properties.validShape.dimensionSize[2] * properties.validShape.dimensionSize[3];
+    auto dim_len = properties.validShape.numDimensions;
+    for (int32_t dim_i = dim_len - 1; dim_i >= 0; --dim_i) {
+      if (properties.stride[dim_i] == -1) {
+        auto cur_stride = properties.stride[dim_i + 1] * properties.validShape.dimensionSize[dim_i + 1];
+        properties.stride[dim_i] = ALIGN_32(cur_stride);
+      }
+    }
+#endif
+
     tensor.properties = properties;
     tensor.properties.tensorType = properties.tensorType;
-    switch (properties.tensorLayout) {
-    case HB_DNN_LAYOUT_NHWC:
-      model_input_h_ = properties.validShape.dimensionSize[1];
-      model_input_w_ = properties.validShape.dimensionSize[2];
-      break;
-    case HB_DNN_LAYOUT_NCHW:
-      model_input_h_ = properties.validShape.dimensionSize[2];
-      model_input_w_ = properties.validShape.dimensionSize[3];
-      break;
-    default: RCLCPP_ERROR(logger_, "=> input tensor layout is not in [HB_DNN_LAYOUT_NHWC, HB_DNN_LAYOUT_NCHW]"); return -1;
-    }
+
+#ifdef PLATFORM_X5
     tensor.properties.validShape.numDimensions = 4;
     tensor.properties.validShape.dimensionSize[0] = 1;
     tensor.properties.validShape.dimensionSize[1] = 3;
@@ -134,6 +152,18 @@ int DStereoOccNetInfer::prepare_input_tensor() {
     } else {
       return -1;
     }
+#endif
+
+#ifdef PLATFORM_S100
+    if (properties.tensorType == HB_DNN_TENSOR_TYPE_U8) {
+      ret_code = hbSysAllocCachedMem(&tensor.sysMem, properties.alignedByteSize);
+      HB_CHECK_SUCCESS(logger_, ret_code, "hbSysAllocCachedMem failed");
+      tensor.sysMem.memSize = properties.alignedByteSize;
+      RCLCPP_INFO_STREAM(logger_, "=> input tensor size: " << tensor.sysMem.memSize);
+    } else {
+      return -1;
+    }
+#endif
   }
   return ret_code;
 }
@@ -145,7 +175,12 @@ int DStereoOccNetInfer::prepare_output_tensor() {
   for (int i = 0; i < output_count_; ++i) {
     ret_code = hbDNNGetOutputTensorProperties(&output_tensors_[i].properties, dnn_handle_, i);
     HB_CHECK_SUCCESS(logger_, ret_code, "hbDNNGetOutputTensorProperties failed");
+#ifdef PLATFORM_X5
     ret_code = hbSysAllocCachedMem(&output_tensors_[i].sysMem[0], output_tensors_[i].properties.alignedByteSize);
+#endif
+#ifdef PLATFORM_S100
+    ret_code = hbSysAllocCachedMem(&output_tensors_[i].sysMem, output_tensors_[i].properties.alignedByteSize);
+#endif
     HB_CHECK_SUCCESS(logger_, ret_code, "hbSysAllocCachedMem failed");
     RCLCPP_INFO_STREAM(logger_, "=> output[" << i << "].memsize: " << output_tensors_[i].properties.alignedByteSize);
   }
@@ -200,6 +235,8 @@ int DStereoOccNetInfer::forward(std::shared_ptr<uint8_t> left_img_data, std::sha
 
 int DStereoOccNetInfer::fill_nv12_img_to_input_tensor(const uint8_t *left_img_data, const uint8_t *right_img_data) {
   int ret_code = 0;
+
+#ifdef PLATFORM_X5
   hbDNNTensor &left_input_tensor = input_tensors_[0];
   hbDNNTensor &right_input_tensor = input_tensors_[1];
 
@@ -241,6 +278,40 @@ int DStereoOccNetInfer::fill_nv12_img_to_input_tensor(const uint8_t *left_img_da
     RCLCPP_ERROR(logger_, "=> input_tensor_type is not in [HB_DNN_IMG_TYPE_NV12, HB_DNN_IMG_TYPE_NV12_SEPARATE]");
     return -1;
   }
+#endif
+
+#ifdef PLATFORM_S100
+  hbDNNTensor &left_input_y_tensor = input_tensors_[0];
+  hbDNNTensor &left_input_uv_tensor = input_tensors_[1];
+  hbDNNTensor &right_input_y_tensor = input_tensors_[2];
+  hbDNNTensor &right_input_uv_tensor = input_tensors_[3];
+
+  if (input_tensor_type_ == HB_DNN_TENSOR_TYPE_U8) {
+    // RCLCPP_INFO(logger_, "=>fill image data into memory HB_DNN_TENSOR_TYPE_U8");
+    // fill image data into memory
+    ret_code = hbSysWriteMem(&left_input_y_tensor.sysMem, (char *)left_img_data, left_input_y_tensor.sysMem.memSize);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysWriteMem failed");
+    ret_code = hbSysWriteMem(&left_input_uv_tensor.sysMem, (char *)left_img_data + left_input_y_tensor.sysMem.memSize, left_input_uv_tensor.sysMem.memSize);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysWriteMem failed");
+    ret_code = hbSysWriteMem(&right_input_y_tensor.sysMem, (char *)right_img_data, right_input_y_tensor.sysMem.memSize);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysWriteMem failed");
+    ret_code = hbSysWriteMem(&right_input_uv_tensor.sysMem, (char *)right_img_data + right_input_y_tensor.sysMem.memSize, right_input_uv_tensor.sysMem.memSize);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysWriteMem failed");
+
+    // make sure memory data is flushed to DDR before inference
+    ret_code = hbSysFlushMem(&left_input_y_tensor.sysMem, HB_SYS_MEM_CACHE_CLEAN);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
+    ret_code = hbSysFlushMem(&left_input_uv_tensor.sysMem, HB_SYS_MEM_CACHE_CLEAN);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
+    ret_code = hbSysFlushMem(&right_input_y_tensor.sysMem, HB_SYS_MEM_CACHE_CLEAN);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
+    ret_code = hbSysFlushMem(&right_input_uv_tensor.sysMem, HB_SYS_MEM_CACHE_CLEAN);
+    HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
+  } else {
+    RCLCPP_ERROR(logger_, "=> input_tensor_type is not in [HB_DNN_TENSOR_TYPE_U8]");
+    return -1;
+  }
+#endif
 
   return ret_code;
 }
@@ -325,7 +396,12 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
   int ret_code = 0;
   // make sure CPU read data from DDR before using output tensor data
   for (size_t i = 0; i < output_tensors_.size(); i++) {
+#ifdef PLATFORM_X5
     ret_code = hbSysFlushMem(&(output_tensors_[i].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
+#endif
+#ifdef PLATFORM_S100
+    ret_code = hbSysFlushMem(&(output_tensors_[i].sysMem), HB_SYS_MEM_CACHE_INVALIDATE);
+#endif
     HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
   }
 
@@ -333,8 +409,12 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
   if (output_tensor.properties.tensorType != HB_DNN_TENSOR_TYPE_S32) {
     return -1;
   }
-
+#ifdef PLATFORM_X5
   auto output_tensor_data = reinterpret_cast<int32_t *>(output_tensor.sysMem[0].virAddr);
+#endif
+#ifdef PLATFORM_S100
+  auto output_tensor_data = reinterpret_cast<int32_t *>(output_tensor.sysMem.virAddr);
+#endif
   int dims = output_tensor.properties.validShape.numDimensions;
   RCLCPP_INFO(logger_, "=> output tensor dims: %d", dims);
   if (dims != 4) {
