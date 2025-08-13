@@ -133,15 +133,12 @@ int DStereoOccNetInfer::prepare_input_tensor() {
     tensor.properties.validShape.dimensionSize[3] = model_input_w_;
     tensor.properties.alignedShape = tensor.properties.validShape;
 
-    RCLCPP_INFO_STREAM(logger_, "=> model_input_h: " << model_input_h_ << ", model_input_w: " << model_input_w_);
-
     if (properties.tensorType == HB_DNN_IMG_TYPE_NV12) {
-      RCLCPP_INFO(logger_, "=> allocate memory HB_DNN_IMG_TYPE_NV12");
       ret_code = hbSysAllocCachedMem(&tensor.sysMem[0], (3 * model_input_h_ * model_input_w_) / 2);
       HB_CHECK_SUCCESS(logger_, ret_code, "hbSysAllocCachedMem failed");
       tensor.sysMem[0].memSize = (3 * model_input_h_ * model_input_w_) / 2;
+      RCLCPP_INFO_STREAM(logger_, "=> input tensor size: " << tensor.sysMem[0].memSize);
     } else if (properties.tensorType == HB_DNN_IMG_TYPE_NV12_SEPARATE) {
-      RCLCPP_INFO(logger_, "=> allocate memory HB_DNN_IMG_TYPE_NV12_SEPARATE");
       ret_code = hbSysAllocCachedMem(&tensor.sysMem[0], model_input_h_ * model_input_w_);
       HB_CHECK_SUCCESS(logger_, ret_code, "hbSysAllocCachedMem failed");
       tensor.sysMem[0].memSize = model_input_h_ * model_input_w_;
@@ -149,6 +146,8 @@ int DStereoOccNetInfer::prepare_input_tensor() {
       ret_code = hbSysAllocCachedMem(&tensor.sysMem[1], model_input_h_ * model_input_w_ / 2);
       HB_CHECK_SUCCESS(logger_, ret_code, "hbSysAllocCachedMem failed");
       tensor.sysMem[1].memSize = model_input_h_ * model_input_w_ / 2;
+      RCLCPP_INFO_STREAM(logger_, "=> input tensor size[0]: " << tensor.sysMem[0].memSize);
+      RCLCPP_INFO_STREAM(logger_, "=> input tensor size[1]: " << tensor.sysMem[1].memSize);
     } else {
       return -1;
     }
