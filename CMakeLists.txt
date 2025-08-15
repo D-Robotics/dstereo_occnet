@@ -5,14 +5,44 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Set default build type (can be overridden by external command)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# compiler optimization settings
 set(DNN_LIBS "")
 if(PLATFORM_S100)
   message("=> build platform S100")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} \
+  -O3 -DNDEBUG \
+  -mcpu=cortex-a78 \
+  -mtune=cortex-a78 \
+  -funroll-loops \
+  -finline-functions -finline-limit=1000 \
+  -fomit-frame-pointer \
+  -fstrict-aliasing \
+  -ffp-contract=fast -fno-trapping-math -fno-signaling-nans \
+  -frounding-math \
+  -flto=auto -fuse-linker-plugin")
   add_definitions(-DPLATFORM_S100)
+  set(LAUNCH_DIR "s100")
   list(APPEND DNN_LIBS dnn hbucp)
 else()
   message("=> build platform X5")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} \
+  -O3 -DNDEBUG \
+  -mcpu=cortex-a55 \
+  -mtune=cortex-a55 \
+  -funroll-loops \
+  -finline-functions -finline-limit=800 \
+  -fomit-frame-pointer \
+  -fstrict-aliasing \
+  -ffp-contract=fast -fno-trapping-math -fno-signaling-nans \
+  -frounding-math \
+  -flto=auto -fuse-linker-plugin")
   add_definitions(-DPLATFORM_X5)
+  set(LAUNCH_DIR "x5")
   list(APPEND DNN_LIBS dnn cnn_intf hbrt_bayes_aarch64)
 endif()
 
@@ -54,7 +84,7 @@ add_library(${PROJECT_NAME}_component SHARED
   src/thread_pool.cpp
   src/file_utils.cpp
 )
-target_compile_features(${PROJECT_NAME}_component PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+target_compile_features(${PROJECT_NAME}_component PUBLIC c_std_99 cxx_std_17) # Require C99 and C++17
 target_include_directories(${PROJECT_NAME}_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
@@ -77,7 +107,11 @@ rclcpp_components_register_node(${PROJECT_NAME}_component
 # install
 install(TARGETS ${PROJECT_NAME}_component RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(TARGETS ${PROJECT_NAME}_node DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+file(GLOB LAUNCH_FILES
+  launch/*launch.py
+  launch/${LAUNCH_DIR}/*launch.py
+)
+install(FILES ${LAUNCH_FILES} DESTINATION share/${PROJECT_NAME}/launch)
 install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

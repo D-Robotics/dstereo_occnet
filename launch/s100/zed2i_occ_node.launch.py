@@ -20,10 +20,16 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python import get_package_share_directory
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 
 
 def generate_launch_description():
+    occ_model_file_path = os.path.join(
+        get_package_share_directory("dstereo_occnet"),
+        "config",
+        "S100-OCC-32x64x96.hbm",
+    )
+
     web_pub_arg = DeclareLaunchArgument(
         "web_pub",
         default_value="true",
@@ -39,6 +45,22 @@ def generate_launch_description():
         )
     )
 
+    # zed2i stereo camera node
+    zed_cam_node = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("hobot_zed_cam"),
+                "launch/zed_cam_node.launch.py",
+            )
+        ),
+        launch_arguments={
+            "need_rectify": "true",
+            "resolution": "720p",
+            "dst_width": "640",
+            "dst_height": "352",
+        }.items(),
+    )
+
     # OccNet algorithm node
     dstereo_occnet_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -48,7 +70,7 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
-            "use_local_image": "true",
+            "occ_model_file_path": occ_model_file_path,
         }.items(),
     )
 
@@ -90,6 +112,7 @@ def generate_launch_description():
         [
             web_pub_arg,
             shared_mem_node,
+            zed_cam_node,
             dstereo_occnet_node,
             codec_node,
             web_node,
