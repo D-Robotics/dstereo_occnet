@@ -29,3 +29,37 @@ std::vector<std::pair<std::string, std::string>> FileUtils::find_pairs(const std
 
   return file_pairs;
 }
+
+void FileUtils::save_to_bin(const std::string &filename, const char *data, size_t size) {
+  std::ofstream out(filename, std::ios::out | std::ios::binary);
+  if (!out) {
+    throw std::runtime_error("Failed to open file: " + filename);
+  }
+  out.write(reinterpret_cast<const char *>(data), size);
+  out.close();
+}
+
+void FileUtils::save_two_to_bin(const std::string &filename, const char *data1, size_t size1, const char *data2, size_t size2) {
+  std::ofstream out(filename, std::ios::out | std::ios::binary);
+  if (!out) {
+    throw std::runtime_error("Failed to open file: " + filename);
+  }
+
+  out.write(reinterpret_cast<const char *>(data1), size1);
+  out.write(reinterpret_cast<const char *>(data2), size2);
+
+  out.close();
+}
+
+void FileUtils::save_tensor_to_txt(const std::string &filename, const int32_t *data, size_t count) {
+  std::ofstream out(filename);
+  if (!out) {
+    throw std::runtime_error("Failed to open file: " + filename);
+  }
+
+  for (size_t i = 0; i < count; ++i) {
+    out << data[i] << " \n";
+  }
+
+  out.close();
+}

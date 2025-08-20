@@ -296,6 +296,15 @@ int DStereoOccNetInfer::fill_nv12_img_to_input_tensor(const uint8_t *left_img_da
     ret_code = hbSysWriteMem(&right_input_uv_tensor.sysMem, (char *)right_img_data + right_input_y_tensor.sysMem.memSize, right_input_uv_tensor.sysMem.memSize);
     HB_CHECK_SUCCESS(logger_, ret_code, "hbSysWriteMem failed");
 
+    // FileUtils::save_to_bin("left_input_y.bin", reinterpret_cast<const char *>(left_input_y_tensor.sysMem.virAddr), left_input_y_tensor.sysMem.memSize);
+    // FileUtils::save_to_bin("left_input_uv.bin", reinterpret_cast<const char *>(left_input_uv_tensor.sysMem.virAddr), left_input_uv_tensor.sysMem.memSize);
+    // FileUtils::save_two_to_bin("left_input.bin", reinterpret_cast<const char *>(left_input_y_tensor.sysMem.virAddr), left_input_y_tensor.sysMem.memSize,
+    //                            reinterpret_cast<const char *>(left_input_uv_tensor.sysMem.virAddr), left_input_uv_tensor.sysMem.memSize);
+    // FileUtils::save_to_bin("right_input_y.bin", reinterpret_cast<const char *>(right_input_y_tensor.sysMem.virAddr), right_input_y_tensor.sysMem.memSize);
+    // FileUtils::save_to_bin("right_input_uv.bin", reinterpret_cast<const char *>(right_input_uv_tensor.sysMem.virAddr), right_input_uv_tensor.sysMem.memSize);
+    // FileUtils::save_two_to_bin("right_input.bin", reinterpret_cast<const char *>(right_input_y_tensor.sysMem.virAddr), right_input_y_tensor.sysMem.memSize,
+    //                            reinterpret_cast<const char *>(right_input_uv_tensor.sysMem.virAddr), right_input_uv_tensor.sysMem.memSize);
+
     // make sure memory data is flushed to DDR before inference
     ret_code = hbSysFlushMem(&left_input_y_tensor.sysMem, HB_SYS_MEM_CACHE_CLEAN);
     HB_CHECK_SUCCESS(logger_, ret_code, "hbSysFlushMem failed");
@@ -432,6 +441,8 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
   int *shape = output_tensor.properties.validShape.dimensionSize;
   int B = shape[0], X = shape[1], Y = shape[2], Z = shape[3];
   RCLCPP_INFO(logger_, "=> output tensor shape: [%d, %d, %d, %d]", B, X, Y, Z);
+
+  // FileUtils::save_tensor_to_txt("occ_result.txt", output_tensor_data, output_tensor.properties.alignedByteSize / sizeof(int32_t));
 
   occ_points.reserve(X * Y * (Z / 2));
   for (int z = 0; z < Z; z += 2) {
