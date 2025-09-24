@@ -497,6 +497,7 @@ int DStereoOccNetInfer::postprocess(const std_msgs::msg::Header &header, const r
 
   auto occ_grid_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
   occ_grid_msg->header = header;
+  occ_grid_msg->header.frame_id = "camera_link";
   occ_grid_msg->height = 1;
   occ_grid_msg->is_dense = false;
   occ_grid_msg->is_bigendian = false;
