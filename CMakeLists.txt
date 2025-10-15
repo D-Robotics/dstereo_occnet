@@ -105,7 +105,11 @@ rclcpp_components_register_node(${PROJECT_NAME}_component
 )
 
 # install
-install(TARGETS ${PROJECT_NAME}_component RUNTIME DESTINATION lib/${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME}_component 
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 install(TARGETS ${PROJECT_NAME}_node DESTINATION lib/${PROJECT_NAME})
 file(GLOB LAUNCH_FILES
   launch/*launch.py
