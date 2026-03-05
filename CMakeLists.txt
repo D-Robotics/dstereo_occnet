@@ -65,14 +65,19 @@ link_directories(
   ${SYS_ROOT}/usr/lib
 )
 
-include(FetchContent)
-FetchContent_Declare(
-  magic_enum
-  GIT_REPOSITORY https://github.com/Neargye/magic_enum.git
-  GIT_TAG v0.9.7
-)
-FetchContent_MakeAvailable(magic_enum)
+# include(FetchContent)
+# FetchContent_Declare(
+#   magic_enum
+#   GIT_REPOSITORY https://github.com/Neargye/magic_enum.git
+#   GIT_TAG v0.9.7
+# )
+# FetchContent_MakeAvailable(magic_enum)
+set(magic_enum_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/magic_enum/include)
 
+# include
+include_directories(
+  ${magic_enum_DIR}
+)
 # add libraries
 add_library(${PROJECT_NAME}_component SHARED
   src/dstereo_occnet_node.cpp
@@ -96,7 +101,7 @@ ament_target_dependencies(${PROJECT_NAME}_component
 )
 target_link_libraries(${PROJECT_NAME}_component
   ${DNN_LIBS}
-  magic_enum::magic_enum
+  # magic_enum::magic_enum
 )
 # compile executable file
 rclcpp_components_register_node(${PROJECT_NAME}_component
